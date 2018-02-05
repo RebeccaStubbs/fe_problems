@@ -1,0 +1,23 @@
+---
+title: "Formation Environmental Test Questions"
+output: html_document
+---
+
+Set up R working environment
+```{r setup, include=TRUE, warning=F, message=F}
+knitr::opts_chunk$set(echo = TRUE) # Usually show the code in the R-markdown
+
+rm(list=ls()) # Clear working environment
+setwd("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/") # Set working directory
+
+library("MapSuite") #Self-written library, has many common libs as dependencies
+```
+
+
+```{r}
+```
+
+
+```{r, echo=FALSE}
+# Embed plots with no code here beforehand
+```
