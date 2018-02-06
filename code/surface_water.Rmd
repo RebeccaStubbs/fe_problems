@@ -12,22 +12,32 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
 
 sw<-fread("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/data/Dataset_C.csv") # surface water observations
 
+sw[,index:=seq(1:nrow(sw))]
 # Parse out date information from character date column
-sw[,Month:=as.numeric(strsplit(SampleDate,"/")[[1]][1])]
-sw[,Day:=as.numeric(strsplit(SampleDate,"/")[[1]][2])]
-sw[,Year:=as.numeric(strsplit(SampleDate,"/")[[1]][3])]
+sw[,Month:=as.numeric(strsplit(SampleDate,"/")[[1]][1]),by=index]
+sw[,Day:=as.numeric(strsplit(SampleDate,"/")[[1]][2]),by=index]
+sw[,Year:=as.numeric(strsplit(SampleDate,"/")[[1]][3]),by=index]
 sw[,Date:=as.IDate(paste0((2000+Year),"-",Month,"-",Day))] # Create formal column of integer-date
-
 
 # For each analyte, discover the minimum date, and generate a month index from that date:
 sw[,year_min:=min(Year,na.rm=T),by=StandardAnalyte] # First sample year, calculated by each analyte
 sw[,month_index:=(12*Year-year_min) + Month] # Number of months from the start of the samples
 
-        year_min<-min(analyte$Year,na.rm=T)
-        analyte[,mo_ind:= (12*(Year-year_min)) + Month] # get month index from start of time series
-        
+# Add variables on mean concentration for each analyte by site and globally/for all samples
+sw[,mean_concentration_analyte_station:=mean(StandardResult,na.rm=T),by=list(StationName,StandardAnalyte)]
+sw[,mean_concentration_analyte:=mean(StandardResult,na.rm=T),by=StandardAnalyte]
+
 ```
 
+
+Do a test plot: 1 Analyte, 1 Station, over time. 
+
+```{r}
+      analyte<-sw[StandardAnalyte=="Oxygen, Dissolved"]
+
+ggplot(analyte, aes(month_index, StandardResult)) + geom_point() + xlab("") + ylab(analyte$StandardUnit[1])
+
+                                                                                                       ```
 ## Plot by Station, Analyte. 
 
 for (s in unique(sw$StationName)){
