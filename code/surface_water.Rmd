@@ -9,6 +9,7 @@ rm(list=ls()) # Clear working environment
 setwd("/Users/stubbsrw/Documents/fe_problems") # Set working directory
 
 library("MapSuite") #Self-written library, has many common libs as dependencies
+library("hexbin") # For the hex-bin plots
 
 sw<-fread("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/data/Dataset_C.csv") # surface water observations
 
@@ -38,14 +39,53 @@ sw[Month %in% c(12,1,2), Season:='Winter']
 sw[Month %in% c(3,4,5), Season:='Spring']
 sw[Month %in% c(6,7,8), Season:='Summer']
 sw[Month %in% c(9,10,11), Season:='Fall']
+sw[,Month_String:=month.abb[Month]]
+sw[,log_obs:=log(StandardResult)]
 ```
 Do a test plot: 1 Analyte, 1 Station, over time. 
 
 ```{r}
 a<-"Oxygen, Dissolved"
-      analyte<-sw[StandardAnalyte==a]
+s<-"FE-4023"
+analyte<-sw[StandardAnalyte==a]
+mean_observation<-mean(analyte$StandardResult)
 
-ggplot(analyte, aes(x= Date, y=StandardResult, color=StationName)) + geom_line() + xlab("") + ylab(analyte$StandardUnit[1]) + ggtitle(a) + scale_x_date(labels = function(x) format(x, "%b-%y"))
+ggplot(analyte, aes(x= Date, y=StandardResult, color=StationName)) + geom_hex() + xlab("") + ylab(analyte$StandardUnit[1]) + ggtitle(a) + scale_x_date(labels = function(x) format(x, "%b-%y"))
+
+
+# Plotting using the HexBin Frequency graphics, where the number of stations 
+ggplot(analyte, aes(x=Date, y=log_obs)) + 
+  geom_hex() + 
+  xlab("Observations in Each Month, All Years, All Stations") + 
+  scale_x_date(labels = function(x) format(x, "%b-%y")) + 
+  ylab(analyte$StandardUnit[1]) + 
+  ggtitle(paste0(a)) + theme_bw() + 
+  scale_fill_gradientn(colors=wpal("cool_blue_jeans")) +
+  guides(fill=guide_colourbar(title="N Stations", title.position="top", barheight=10, barwidth=1,
+                              label=TRUE, ticks=FALSE, direction="vertical")) 
+
+# Plotting by Month, for all years, all stations 
+months_in_order<-c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+
+# Non-Transformed
+ggplot(analyte, aes(x= Month, y=log_obs)) + geom_hex() + 
+  xlab("Observations in Each Month, All Years, All Stations") + 
+  scale_x_continuous(limits=c(1,12),breaks=seq(1,12), labels=months_in_order) +
+  ylab(analyte$StandardUnit[1]) + 
+  ggtitle(paste0(a)) + theme_bw() + 
+  scale_fill_gradientn(colors=wpal("berries")) +
+  guides(fill=guide_colourbar(title="N Stations", title.position="top", barheight=10, barwidth=1,
+                              label=TRUE, ticks=FALSE, direction="vertical")) 
+
+# Log-transformed
+ggplot(analyte, aes(x= Month, y=log_obs)) + geom_hex() + 
+  xlab("Observations in Each Month, All Years, All Stations") + 
+  scale_x_continuous(limits=c(1,12),breaks=seq(1,12), labels=months_in_order) +
+  ylab(analyte$StandardUnit[1]) + 
+  ggtitle(paste0(a," (Log-Transformed) ")) + theme_bw() + 
+  scale_fill_gradientn(colors=wpal("berries")) +
+  guides(fill=guide_colourbar(title="N Stations", title.position="top", barheight=10, barwidth=1,
+                              label=TRUE, ticks=FALSE, direction="vertical")) 
 
 ```
 
@@ -58,3 +98,16 @@ for ( a in unique(StatndardAnalyte)){
 }
 }
 ```
+
+## Fit GAMM with knots for each season and year
+
+```{r}
+# Pulling from https://www.fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
+# 4 Seasons, 3 Years.
+m0 <- mgcv::gamm(StandardResult ~ s(Month, bs = "cc", k = 4) + s(month_index, k = 3) + as.factor(StationName), data = analyte)
+
+plot(m0$gam, scale = 0, main = "GAMM fit", xlab = "Month", ylab = paste0(a," Seasonal Effect"))
+
+```
+
+
