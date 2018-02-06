@@ -55,7 +55,8 @@ library("hexbin") # For the hex-bin plots
 
 ## Assign seasons to different months
 
-In order to symbolize by season, you first need to define what data points are in each season. For now, I'm 
+In order to symbolize by season, you first need to define what data points are in each season. For now, I'm lumping observations into seasons by month. You could do this a fancier way if you wanted, based on cut points of the equinoxes; for now, we'll just go with month-by-month approximations. I'm also assuming that this is in the Northern hemisphere...
+
 
 ```{r}
 sw[Month %in% c(12,1,2), Season:='Winter']
@@ -64,14 +65,13 @@ sw[Month %in% c(6,7,8), Season:='Summer']
 sw[Month %in% c(9,10,11), Season:='Fall']
 sw[,Month_String:=month.abb[Month]]
 sw[,log_obs:=log(StandardResult)] # Just in case a log-transform would be more informative, although NaNs will exist where the observation is negative
+sw[,Season:=factor(Season, levels = c("Winter","Spring","Summer","Fall"))] # Defining Season as a factor variable
 ```
-Worth noting here that you could do this a fancier way if you wanted, based on cut points of the equinoxes; for now, we'll just go by month approximations. I'm also assuming that this is in the Northern hemisphere..
 
 ### Plotting Temperature over the full time series
 
 ```{r}
 a<-"Temperature" #Picking this one since I have the best sense of what it "should" or "could" be per season
-s<-"FE-4023" # arbitrary station to test things out on
 
 # Make a subset data set with only the analyte you are interested in
 analyte<-sw[StandardAnalyte==a]
@@ -105,15 +105,46 @@ ggplot(analyte, aes(x= Month, y=log_obs)) + geom_hex() +
                               label=TRUE, ticks=FALSE, direction="vertical")) 
 ```
 
-## Plot by Station, Analyte. 
+# Plotting a full time series for one station, one analyte
+
+Below is code to graph a subset of the data (one station's measurements for a specific analyte), with the data symbolized by season (in this case, using color to clarify which season the data point was taken in).
 
 ```{r}
-for (s in unique(sw$StationName)){
-for ( a in unique(sw$StandardAnalyte)){
+a<-"Temperature"
+s<-"FE-4023" # arbitrary station to test things out on; note that the data set analyte is already set to be Temperature.
 
-}
-}
+# Define a color pallette for the factor variable, Season
+SeasonColors<-wpal("foliage",noblack=T,n=4)
+names(SeasonColors) <- c("Winter","Spring","Summer","Fall")
+
+ggplot(sw[StandardAnalyte==a & StationName==s], 
+  aes(x= Date, y=StandardResult, color=Season)) + geom_point(size=4) + 
+  xlab("Date of Sample") + 
+  scale_x_date(labels = function(x) format(x, "%b-%y")) + 
+  ylab(analyte$StandardUnit[1]) + 
+  ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
+  scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
+  geom_hline(yintercept = sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1]) + 
+  annotate("text", min(analyte$Date), 
+           sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1], 
+           vjust = -1, label = "Mean")
+
 ```
+
+OK, good enough to iterate over; we can add those plots to PDF dashboards for each of the analytes later on.
+
+# Quantifying Seasonality
+
+Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult-- is the change in observed data measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or influence of a covariate? 
+
+Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation. 
+
+Given these constraints, a few different strategies came to mind. For each of them, I tested the method on Temperature, since the right strategy would presumably show a seasonal effect for this analyte. 
+
+## Method 1: 
+
+There is some discussion of the number of knots that are appropriate for seasonal land (not water) surface temperature changes in this paper here: http://www.mdpi.com/2072-4292/9/12/1254/pdf; however, it is discussed that the ideal number of knots for their model to represent seasonality (8) may not be appropriate for other applications. 
+
 
 ## Fit GAMM with knots for each season and year
 
@@ -149,16 +180,33 @@ lines(mod$fitted.values,analyte$month_index,col=2)
 analyte[,fitted:=mod$fitted.values]
 ```
 
-# Quantifying Seasonality
 
-A few methods came to mind for this data set. 
 
-For any given analyte, only a handful of observations were available across the time period for any given station-- which makes the variability in measurement due to station and due to other factors difficult to disentangle. Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation.  
-
-It seemed as if the ultimate goal of this question was to be able to the magnitude of seasonal variability across analytes, and 
-
-Given these constraints, a few different strategies came to mind. For each of them, I tested the method on Temperature, since the right strategy would presumably show a seasonal effect for this analyte. 
+## Generate PDF of results for each Analyte
 
 
 ```{r}
+for ( a in unique(sw$StandardAnalyte)){
+  analyte<-sw[StandardAnalyte==a] 
+pdf(paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/results/surface_temperature/",a,".pdf"))
+
+  # Generate plot for each Analyte over time, for each station. 
+  for (s in unique(sw$StationName)){
+  
+    p<-ggplot(sw[StandardAnalyte==a & StationName==s], 
+        aes(x= Date, y=StandardResult, color=Season)) + geom_point(size=4) + 
+        xlab("Date of Sample") + 
+        scale_x_date(labels = function(x) format(x, "%b-%y")) + 
+        ylab(analyte$StandardUnit[1]) + 
+        ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
+        scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
+        geom_hline(yintercept = sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1]) + 
+        annotate("text", min(analyte$Date), 
+                 sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1], 
+                 vjust = -1, label = "Mean")
+    
+    print(p) # Print it to the PDF
+  }
+  dev.off() # Close PDF for each 
+}
 ```
