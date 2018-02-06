@@ -29,19 +29,32 @@ sw[,mean_concentration_analyte:=mean(StandardResult,na.rm=T),by=StandardAnalyte]
 
 ```
 
+## Assign seasons to different months
 
+Worth noting here that you could do this a fancier way if you wanted, based on cut points of the equinoxes; for now, we'll just go by month approximations. I'm also assuming that this is in the Northern hemisphere..
+
+```{r}
+sw[Month %in% c(12,1,2), Season:='Winter']
+sw[Month %in% c(3,4,5), Season:='Spring']
+sw[Month %in% c(6,7,8), Season:='Summer']
+sw[Month %in% c(9,10,11), Season:='Fall']
+```
 Do a test plot: 1 Analyte, 1 Station, over time. 
 
 ```{r}
-      analyte<-sw[StandardAnalyte=="Oxygen, Dissolved"]
+a<-"Oxygen, Dissolved"
+      analyte<-sw[StandardAnalyte==a]
 
-ggplot(analyte, aes(month_index, StandardResult)) + geom_point() + xlab("") + ylab(analyte$StandardUnit[1])
+ggplot(analyte, aes(x= Date, y=StandardResult, color=StationName)) + geom_line() + xlab("") + ylab(analyte$StandardUnit[1]) + ggtitle(a) + scale_x_date(labels = function(x) format(x, "%b-%y"))
 
-                                                                                                       ```
+```
+
 ## Plot by Station, Analyte. 
 
+```{r}
 for (s in unique(sw$StationName)){
 for ( a in unique(StatndardAnalyte)){
 
 }
 }
+```
