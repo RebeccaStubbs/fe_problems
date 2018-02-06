@@ -36,29 +36,29 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
   MapSuite::PointMap(coords=chem_data,id="sp_index",xcol="X",ycol="Y",variable="Year",map_title="Samples by Year")
 
 # Let's see if we can find the dredged navigation channel/explore the dredging history
-  MapSuite::PointMap(coords=chem_data[!is.na(DredgeYear)],id="sp_index",xcol="X",ycol="Y",variable="DredgeYear",
-                     map_title="Sample Location Dredging History")
+  MapSuite::PointMap(coords=chem_data[Dredged=="Yes"],id="sp_index",xcol="X",ycol="Y",variable="DredgeYear",
+                     map_title="Sample Location Dredging History",map_colors = wpal("betafish"))
   
-# What about different chemical levels-- where were each of the chemicals detected, and not?
+# What about different chemical levels-- some plots 
   
-  ## Arsenic
+  ## Arsenic 
     MapSuite::PointMap(coords=chem_data[Chemical=="Arsenic",],id="sp_index",xcol="X",ycol="Y",
                        variable="Detected",map_title="Arsenic Detection")
     MapSuite::PointMap(coords=chem_data[Chemical=="Arsenic",],id="sp_index",xcol="X",ycol="Y",
                        variable="ValueOrHalfQL",map_title="Arsenic Levels")
-    MapSuite::PointMap(coords=chem_data[ChemicalGroup=="VOCs",],id="sp_index",xcol="X",ycol="Y",
-                       variable="log_value",map_title="Log-transformed VOC Levels") 
+    MapSuite::PointMap(coords=chem_data[Chemical=="Arsenic",],id="sp_index",xcol="X",ycol="Y",
+                       variable="log_value",map_title="Log-Transformed Arsenic Levels",
+                       map_colors=wpal("bright_fire"))
   
-  ## PCBs
-  MapSuite::PointMap(coords=chem_data[ChemicalGroup=="PCBs",],id="sp_index",xcol="X",ycol="Y",
-                     variable="log_value",map_title="Log-transformed PCB Levels",series_dimension = "Year")
+  ## PCBs (polychlorinated biphenyls)
+  MapSuite::PointMap(coords=chem_data[Chemical=="Total PCBs",],id="sp_index",xcol="X",ycol="Y",
+                     variable="log_value",map_title="Log-transformed Total PCBs Levels",
+                     map_colors=wpal("cool_blue_jeans"))
   
-  ## Arsenic
-  MapSuite::PointMap(coords=chem_data[ChemicalGroup=="Arsenic",],id="sp_index",xcol="X",ycol="Y",
-                     variable="log_value",map_title="Log-transformed Arsenic Levels")
+  ## PAHs (polycyclic aromatic hydrocarbons)
+  MapSuite::PointMap(coords=chem_data[ChemicalGroup=="PAHs",],id="sp_index",xcol="X",ycol="Y",
+                     variable="log_value",map_title="Log-transformed PAH Levels",
+                     map_colors=wpal("ocean"))
   
   
-# When were these samples taken?
-
-#We are interested in PCBS, Arsenic, and PAH--so, let's plot those:
   
