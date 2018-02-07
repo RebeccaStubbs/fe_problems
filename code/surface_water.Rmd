@@ -141,14 +141,54 @@ Without knowing the spatial location of any of the stations, I assumed that the 
 
 Given these constraints, a few different strategies came to mind. For each of them, I tested the method on Temperature, since the right strategy would presumably show a seasonal effect for this analyte. 
 
-## Method 1: 
+## Method 1: Use Linear Regression Model Coefficients to quantify seasonal component, by season
+
+Strategy number 1 is running a linear regression with terms for each year and season, to look at the significance and magnitude of seasonal coefficients while "controlling" for annual differences. Both of these variables were included in a linear regression as "dummy" variables-- including year in the model this way removes the idea of temporal "trajectory", which may not exist, or which may reverse direction mid-way in the time period due to some sort of effect or intervention-- without knowing about whether these events exist, including year as a dummy variable is a conservative bet. 
+
+An initial stab at this model also included the sampling station as a variable as well-- however, insufficient data for many of the observation sites (on the order of 2-3 observations for the full time period for Temperature, for instance) makes inference about the individual station's deviation from the mean dubious, and virtually none of the sites were statistically significant in the model. Knowing that certain sites group together might be one way to improve this-- for instance, if all of the "FE-ET" stations could be considered together, it would likely improve the model's estimate, and would better disentangle variation due to site-specific conditions rather than seasonality or annual differences.
+
+```{r}
+# Testing out a linear model with temperature
+mod <- lm(StandardResult  ~ as.factor(Year)+Season,data=analyte)
+summary(mod)
+```
+
+
+```{r}
+linear_model_results<-list() # Create empty list for results to go into 
+analytes<-unique(sw$StandardAnalyte)
+analytes<-analytes[!analytes %in% c("Alkalinity, Total", "DOC", "TOC", "TDS, ratio")] # Each of these are creating problems, so to save time, I'm just going to exclude them from this analysis
+
+for (a in analytes){
+  print(a)
+  analyte<-sw[StandardAnalyte==a]
+  
+  # Run the model for the analyte
+  mod <- lm(StandardResult  ~ as.factor(Year)+Season,data=analyte)
+
+# Capture the regression coefficients produced by the model
+  analyte_results<-data.table(analyte=a,coef=names(mod$coefficients),est=mod$coefficients,std_error=coef(summary(mod))[, "Std. Error"])
+
+linear_model_results[[a]]<-analyte_results # Add the table of regression coefficients to the list
+}
+
+linear_model_results<-rbindlist(linear_model_results)
+
+```
+
+To get a sense of how substantial each season's effect is, we can compare the magnitude of the seasonal effect to the intercept (the otherwise expected value, once year is controlled for):
+
+```{r}
+linear_model_results[coef=="(Intercept)", intercept:=est]
+linear_model_results[,intercept:=min(intercept,na.rm=T),by=analyte]
+```
 
 There is some discussion of the number of knots that are appropriate for seasonal land (not water) surface temperature changes in this paper here: http://www.mdpi.com/2072-4292/9/12/1254/pdf; however, it is discussed that the ideal number of knots for their model to represent seasonality (8) may not be appropriate for other applications. 
 
 
 ## Fit GAMM with knots for each season and year
 
-Another possible approach is to fit a general additive mixed model, where the long-term time trend and the short-term, periodic annual trends are conceptualized by cubic splines. 
+Another possible approach is to fit a general additive mixed model, where the long-term time trend and the short-term, periodic seasonal trends are conceptualized by cubic splines. 
 
 ```{r}
 # Pulling from https://www.fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
@@ -156,7 +196,6 @@ Another possible approach is to fit a general additive mixed model, where the lo
 m0 <- mgcv::gamm(StandardResult ~ s(Month, bs = "cc", k = 6) + s(month_index, k = 3) + as.factor(StationName), data = analyte)
 
 plot(m0$gam, scale = 0, main = "GAMM fit", xlab = "Month", ylab = paste0(a," Seasonal Effect"))
-
 ```
 
 Let's try a linear model with a sin and cosine function
@@ -181,11 +220,10 @@ analyte[,fitted:=mod$fitted.values]
 ```
 
 
-
 ## Generate PDF of results for each Analyte
 
 
-```{r}
+```{r, eval=F}
 for ( a in unique(sw$StandardAnalyte)){
   analyte<-sw[StandardAnalyte==a] 
 pdf(paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/results/surface_temperature/",a,".pdf"))
