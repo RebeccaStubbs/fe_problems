@@ -4,6 +4,7 @@ output:
   html_document: default
   toc: true
   toc_depth: 3 
+runtime: shiny
 ---
 
 # The Prompt 
@@ -34,7 +35,8 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
 library("hexbin") # For the hex-bin plots
 
 # Read in surface water observations as data.table sw
-  sw<-fread("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/data/Dataset_C.csv")
+  #setwd("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/code/")
+  sw<-fread("Dataset_C.csv")
 
 # Parse out date information from character date column
   sw[,index:=seq(1:nrow(sw))]
@@ -58,7 +60,7 @@ library("hexbin") # For the hex-bin plots
 In order to symbolize by season, you first need to define what data points are in each season. For now, I'm lumping observations into seasons by month. You could do this a fancier way if you wanted, based on cut points of the equinoxes; for now, we'll just go with month-by-month approximations. I'm also assuming that this is in the Northern hemisphere...
 
 
-```{r}
+```{r, warning=F, message=F}
 sw[Month %in% c(12,1,2), Season:='Winter']
 sw[Month %in% c(3,4,5), Season:='Spring']
 sw[Month %in% c(6,7,8), Season:='Summer']
@@ -67,6 +69,8 @@ sw[,Month_String:=month.abb[Month]]
 sw[,log_obs:=log(StandardResult)] # Just in case a log-transform would be more informative, although NaNs will exist where the observation is negative
 sw[,Season:=factor(Season, levels = c("Winter","Spring","Summer","Fall"))] # Defining Season as a factor variable
 ```
+
+## Exploring a single analyte as a test case
 
 ### Plotting Temperature over the full time series
 
@@ -78,6 +82,7 @@ analyte<-sw[StandardAnalyte==a]
 mean_observation<-mean(analyte$StandardResult)
 
 # Plotting using the HexBin Frequency graphics, where the number of stations with an observation in that category is essentially heat-mapped
+
 ggplot(analyte, aes(x=Date, y=StandardResult)) + 
   geom_hex() + 
   xlab("Observations Over Time, All Stations") + 
@@ -90,6 +95,7 @@ ggplot(analyte, aes(x=Date, y=StandardResult)) +
 ```
 
 Let's try pooling observations across stations and also years, to get a rough sense of seasonality from a graphical persepective: 
+
 ```{r}
 # Plotting by Month, for all years, all stations 
 months_in_order<-c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
@@ -105,47 +111,111 @@ ggplot(analyte, aes(x= Month, y=log_obs)) + geom_hex() +
                               label=TRUE, ticks=FALSE, direction="vertical")) 
 ```
 
-# Plotting a full time series for one station, one analyte
+Looks like there's a trend there to the casual eye, but interesting to note that there are no observations during the winter months whatsoever. 
 
-Below is code to graph a subset of the data (one station's measurements for a specific analyte), with the data symbolized by season (in this case, using color to clarify which season the data point was taken in).
+### Plotting a full time series for one station, one analyte
+
+As part of the exercise, I need to generate a "time series by station and analyte". Before looping over each station-analyte combination, I need to create a template graphic that I'm happy with. Below is code to graph a subset of the data (one station's measurements for a specific analyte), with the data symbolized by season (in this case, using color to clarify which season the data point was taken in). 
 
 ```{r}
-a<-"Temperature"
-s<-"FE-4023" # arbitrary station to test things out on; note that the data set analyte is already set to be Temperature.
-
 # Define a color pallette for the factor variable, Season
 SeasonColors<-wpal("foliage",noblack=T,n=4)
 names(SeasonColors) <- c("Winter","Spring","Summer","Fall")
 
-ggplot(sw[StandardAnalyte==a & StationName==s], 
-  aes(x= Date, y=StandardResult, color=Season)) + geom_point(size=4) + 
-  xlab("Date of Sample") + 
-  scale_x_date(labels = function(x) format(x, "%b-%y")) + 
-  ylab(analyte$StandardUnit[1]) + 
-  ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
-  scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
-  geom_hline(yintercept = sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1]) + 
-  annotate("text", min(analyte$Date), 
-           sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1], 
-           vjust = -1, label = "Mean")
+# Define function to generate plot
+  MakeAnalyteTSPlot<-function(a,s){
+  
+    p<-ggplot(sw[StandardAnalyte==a & StationName==s], 
+      aes(x= Date, y=StandardResult, color=Season)) + geom_point(size=4) + 
+      xlab("Date of Sample") + 
+      scale_x_date(labels = function(x) format(x, "%b-%y")) + 
+      ylab(sw[StandardAnalyte==a & StationName==s]$StandardUnit[1]) + 
+      ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
+      scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
+      geom_hline(yintercept = sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1]) + 
+      annotate("text", min(analyte$Date), 
+               sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1], 
+               vjust = -1, label = "Mean")
+  
+  return(p)  
+  }
 
+# Make and print plot
+  ts<-MakeAnalyteTSPlot(a="Temperature",s="FE-4023") # Arbitrary station chosen
+  print(ts)
 ```
 
-OK, good enough to iterate over; we can add those plots to PDF dashboards for each of the analytes later on.
+OK, good enough to iterate over (not knowing the audience of these graphs, and what level of polish the client/we are looking for internally). We can now make an interactive plot version of this as an R shiny, below: 
+
+```{r, echo = FALSE}
+library(shiny) #Load shiny (an R package for interactive visuaizations)library:
+
+# Initiate a shiny application
+shiny::shinyApp(
+  
+  # Define the User Interface
+    ui = pageWithSidebar(
+      # Application title
+        headerPanel("Time Series for Analyte-Station"),
+    # Sidebar with a selectable input for analytes and stations
+      sidebarPanel(
+         selectInput("analyte", "Analyte:", 
+                    choices = unique(sw$StandardAnalyte)),
+          selectInput("station", "Station:", 
+                    choices = unique(sw$StationName))
+      ),
+    # Show the time series GGplot in the main panel
+      mainPanel(
+        plotOutput("Analyte_Station_TimeSeries")
+      )
+    ),
+
+  # Define the server/output
+  server = function(input, output) {
+    # Define the Analyte_Station_TimeSeries output  as the TS plot in fn above  
+      output$Analyte_Station_TimeSeries <- renderPlot({
+        ts<-MakeAnalyteTSPlot(a=input$analyte,s=input$station) # Get inputs from UI, use function
+        print(ts)
+      })
+  },
+  options = list(height = 500) # Define how big this visualization GUI is
+)
+```
+We can also save these as PDFs (although that's not nearly as fun). 
+
+## Generate PDF of results for each Analyte
+
+```{r, eval=F}
+for ( a in unique(sw$StandardAnalyte)){
+  analyte<-sw[StandardAnalyte==a] # Subset data to only relevant analyte
+  
+  # Start a PDF document of results
+    pdf(paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/results/surface_water/",a,".pdf"))
+
+     # Generate plot for each Analyte over time, for each station. 
+      for (s in unique(sw$StationName)){ 
+        ts<-MakeAnalyteTSPlot(a=a,s=s) # Get inputs from UI, use function
+        print(ts)  # Print it to the PDF
+      }
+    
+  dev.off() # Close PDF for each 
+}
+```
+
 
 # Quantifying Seasonality
 
-Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult-- is the change in observed data measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or influence of a covariate? 
+The fundamental question here seems to be, "to what extent is the variability in the data due to seasonal effects, rather than annual differences"? Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or the influence of an unknown covariate!  
+
+Given the data constraints, a few different strategies came to mind. As a test case, I used Temperature, since the right strategy would presumably show a seasonal effect for this analyte, and I had a sense of what probably "should" be happening (it presumably will get warmer in the summer months!).
 
 Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation. 
 
-Given these constraints, a few different strategies came to mind. For each of them, I tested the method on Temperature, since the right strategy would presumably show a seasonal effect for this analyte. 
+## Use Linear Regression Model Coefficients to quantify seasonal component, by season
 
-## Method 1: Use Linear Regression Model Coefficients to quantify seasonal component, by season
+Strategy number 1 is running a regression with terms for each year and for each season, to get a sense of the significance and magnitude of seasonal coefficients while "controlling" for annual differences. Both of these variables were included in a linear regression as "dummy" variables, where categories for year and season were represented numerically as presence-absence for each category. Including the season and year variables in the model this way removes the idea of temporal "trajectory" or sequence, which may not exist, or which may reverse direction mid-way in the time period due to some sort of effect or intervention. 
 
-Strategy number 1 is running a linear regression with terms for each year and season, to look at the significance and magnitude of seasonal coefficients while "controlling" for annual differences. Both of these variables were included in a linear regression as "dummy" variables-- including year in the model this way removes the idea of temporal "trajectory", which may not exist, or which may reverse direction mid-way in the time period due to some sort of effect or intervention-- without knowing about whether these events exist, including year as a dummy variable is a conservative bet. 
-
-An initial stab at this model also included the sampling station as a variable as well-- however, insufficient data for many of the observation sites (on the order of 2-3 observations for the full time period for Temperature, for instance) makes inference about the individual station's deviation from the mean dubious, and virtually none of the sites were statistically significant in the model. Knowing that certain sites group together might be one way to improve this-- for instance, if all of the "FE-ET" stations could be considered together, it would likely improve the model's estimate, and would better disentangle variation due to site-specific conditions rather than seasonality or annual differences.
+An initial stab at this model also included the sampling station as a variable as well-- however, insufficient data for many of the observation sites (on the order of 2-3 observations for the full time period for Temperature, for instance) makes inference about the individual station's expected deviation from the mean dubious, and virtually none of the sites were statistically significant in the model. Knowing that certain sites group together might be one way to improve this-- for instance, if all of the "FE-ET" stations could be considered together, it would likely improve the model's estimate, and would better disentangle variation due to site-specific conditions rather than seasonality or annual differences.
 
 ```{r}
 # Testing out a linear model with temperature
@@ -185,7 +255,6 @@ linear_model_results[,intercept:=min(intercept,na.rm=T),by=analyte]
 
 There is some discussion of the number of knots that are appropriate for seasonal land (not water) surface temperature changes in this paper here: http://www.mdpi.com/2072-4292/9/12/1254/pdf; however, it is discussed that the ideal number of knots for their model to represent seasonality (8) may not be appropriate for other applications. 
 
-
 ## Fit GAMM with knots for each season and year
 
 Another possible approach is to fit a general additive mixed model, where the long-term time trend and the short-term, periodic seasonal trends are conceptualized by cubic splines. 
@@ -220,31 +289,3 @@ analyte[,fitted:=mod$fitted.values]
 ```
 
 
-## Generate PDF of results for each Analyte
-
-
-```{r, eval=F}
-for ( a in unique(sw$StandardAnalyte)){
-  analyte<-sw[StandardAnalyte==a] 
-pdf(paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/results/surface_temperature/",a,".pdf"))
-
-  # Generate plot for each Analyte over time, for each station. 
-  for (s in unique(sw$StationName)){
-  
-    p<-ggplot(sw[StandardAnalyte==a & StationName==s], 
-        aes(x= Date, y=StandardResult, color=Season)) + geom_point(size=4) + 
-        xlab("Date of Sample") + 
-        scale_x_date(labels = function(x) format(x, "%b-%y")) + 
-        ylab(analyte$StandardUnit[1]) + 
-        ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
-        scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
-        geom_hline(yintercept = sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1]) + 
-        annotate("text", min(analyte$Date), 
-                 sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1], 
-                 vjust = -1, label = "Mean")
-    
-    print(p) # Print it to the PDF
-  }
-  dev.off() # Close PDF for each 
-}
-```
