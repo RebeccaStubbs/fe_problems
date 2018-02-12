@@ -1,0 +1,69 @@
+---
+title: "Water Body Extent Thought Experiment"
+output: html_document
+---
+
+LANDSAT 8: 30m Resolution
+
+https://landsat.usgs.gov/qualityband
+https://gis.stackexchange.com/questions/251083/processing-landsat-8-data-in-r-using-packages-raster-rstoolbox-etc-in-order
+
+
+RStoolbox: http://bleutner.github.io/RStoolbox/rstbx-docu/classifyQA.html
+
+
+http://bleutner.github.io/RStoolbox/rstbx-docu/classifyQA.html
+
+
+https://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XLII-4-W4/185/2017/isprs-archives-XLII-4-W4-185-2017.pdf
+
+Crappy resolution?
+
+Lake extent using pressure gauges 
+
+```{r}
+# use rLandsat8 package
+
+```
+## Describe how you would find and track the extent of a waterbody within a 1 year period.  Explain the data, method, and platform you would use.
+
+It depends on a number of considerations! A few of them are detailed below. To limit this thought experiment, I'm going to assume that this water body is within the continental United States. 
+
+### Data Source 
+
+#### Are you looking forward, or backward in time? 
+
+If you are interested in how the water extent changed from last year until this year, or between 2 years back in time, you are far more constrained in terms of what data are available (at least, until time travel is invented). Unless FE has collected proprietary images of the area, you are stuck with what you can find, or buy. Generally, since public information is at a lower resolution, the next question is..
+
+#### How small is your water body, and how precise do you need your estimate?
+
+https://www.digitalglobe.com/products/swir-imagery
+
+If you are measuring a thin stream, or a smaller water feature, 1km resolution imagery will probably be useless. However, for a water body is many square miles across, 
+
+
+https://www.researchgate.net/post/How_to_extract_Water_bodies_from_Landsat_8_data
+
+
+Up and coming data set: Canada's RADAR constellation
+http://www.asc-csa.gc.ca/eng/satellites/radarsat/Default.asp
+
+https://earthengine.google.com/datasets/
+
+If in the past:
+  MODIS: 500m  up to 2013
+  https://lpdaac.usgs.gov/dataset_discovery/modis/modis_products_table/mcd12q1
+
+
+
+The data source used 
+
+Budget:
+One option would be to contract a remote sensing company, such as Ursa Space Systems, to periodically collect data (in this case, Synthetic Aperture Radar)  http://ursaspace.com/custom-monitoring-services/ at a desired cadence.
+
+
+
+In what other ways can you double-dip the data sets you are using or processing? 
+
+
+Size of the water body/desired 
