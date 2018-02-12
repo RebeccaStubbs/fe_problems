@@ -1,0 +1,81 @@
+---
+title: "Sediments"
+output: html_document
+---
+
+# First Forays and Data Explorations
+
+Before creating the final products, I've done some preparation and basic exploration, generally scoping out the data set, and preparing it for downstream analysis. 
+
+```{r, setup, include=TRUE, warning=F, message=F}
+
+rm(list=ls()) # Clear working environment
+library("MapSuite") #Self-written library, has many common libs as dependencies
+
+# Duwamish Waterway Data (Dataset B)
+# Worth noting here that the Duwamish effectively runs south, to north: Upstream is south, towards the harbor is north.
+
+# Load in data, which is a spatialpointsdataframe
+  chem_sp<-readRDS("Dataset_B.RDS")
+  
+# Creating an index-- since the data is only linked to the spatial information via order, we need to make sure it's preserved.
+  chem_data<-data.table(chem_sp@data)
+  chem_data[,sp_index:=seq(1:nrow(chem_data))]
+  
+# OK, there are way too many unhelpful columns in this dataset; let's parse it down
+  chem_data<-chem_data[,list(sp_index,X,Y,RM,
+                             UpperDepth_cm,LowerDepth_cm, Unit,
+                             Chemical,ChemicalGroup, SampleDate, 
+                             Detected, observed_value=ValueOrHalfQL,dredged_flag=FE_NAVCHAN_F)]
+
+# Some basic cleanup: I only want to know about samples that have a valid entry for "Detected".
+  chem_data<-chem_data[!is.na(Detected)]
+  
+# What year was each sample taken?
+  chem_data[,Year:=as.numeric(substr(as.character(chem_data$SampleDate),1,4))]
+
+# # If it was dredged, how many years ago was it dredged?
+#   chem_data[DredgeYear=="2003/2004",DredgeYear:="2004"] #Assign ambiguous year ("2003/2004") later year, since we can't assume more time ahs passed than actually has between dredging and sampling.
+#   chem_data[,DredgeYear:=as.numeric(DredgeYear)]
+#   chem_data[,dredge_gap:=Year-DredgeYear]
+
+    chem_data[,log_value:=log(observed_value)] # Let's try a log-transform for the value variables 
+    
+    # Check out sample mid-points, categorize into mid-point groups for core depth
+    chem_data[,sample_midpoint:=(LowerDepth_cm-UpperDepth_cm)/2] # Generate mid-point of samples
+    chem_data[,sample_midpoint_group:=findInterval(sample_midpoint, seq(0,275,25))*25] # Categorizing into max depths
+    chem_data[,noise:=rnorm(nrow(chem_data),mean=0,sd=.2)] # Adding a column of "noise" to be able to jitter our plots
+    
+# Making a structured list for each of the chemicals with data sets, units, and 
+    chemlist<-list()
+    chemlist[["PAHs"]]<-list(dataset=chem_data[ChemicalGroup=="PAHs",],colors="thanksgiving",name="PAHs",unit="ug/kg dw")
+    chemlist[["Arsenic"]]<-list(dataset=chem_data[Chemical=="Arsenic",],colors="seaside",name="Arsenic",unit="ug/kg dw")
+    chemlist[["PCBs"]]<-list(dataset=chem_data[Chemical=="Total PCBs"],colors="skyforest",name="PCBs",unit="ug/kg dw")
+    
+```
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
