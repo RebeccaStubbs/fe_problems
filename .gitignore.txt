@@ -1,0 +1,5 @@
+*.jpeg
+*.pdf
+*.RDS
+*.csv
+*.xlsx
