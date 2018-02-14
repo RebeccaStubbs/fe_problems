@@ -32,7 +32,7 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
     chem_data[,log_value:=log(observed_value)] # Let's try a log-transform for the value variables 
     
     # Check out sample mid-points, categorize into mid-point groups for core depth
-    chem_data[,sample_midpoint:=(LowerDepth_cm-UpperDepth_cm)/2] # Generate mid-point of samples
+    chem_data[,sample_midpoint:=(LowerDepth_cm+UpperDepth_cm)/2] # Generate mid-point of samples
     chem_data[,sample_midpoint_group:=findInterval(sample_midpoint, seq(0,275,25))*25] # Categorizing into max depths
     chem_data[,noise:=rnorm(nrow(chem_data),mean=0,sd=.2)] # Adding a column of "noise" to be able to jitter our plots
     
@@ -48,7 +48,6 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
 # Let's see if we can find the dredged navigation channel/explore the dredging history
   MapSuite::PointMap(coords=chem_data[Dredged=="Yes"],id="sp_index",xcol="X",ycol="Y",variable="DredgeYear",
                      map_title="Sample Location Dredging History",map_colors = wpal("betafish"))
-
   
 # Let's see if we can find the dredged navigation channel/explore the dredging history
   MapSuite::PointMap(coords=chem_data,id="sp_index",xcol="X",ycol="Y",variable="RM",
@@ -180,4 +179,52 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
        }
        
        
+       
+       ```{r}
+       library(shiny) #Load shiny (an R package for interactive visuaizations)library:
+       
+       # Initiate a shiny application
+       shiny::shinyApp(
+         
+         # Define the User Interface
+         ui = pageWithSidebar(
+           # Application title
+           headerPanel("Pollution Intensity"),
+           # Sidebar with a selectable input for analytes and stations
+           sidebarPanel(
+             selectInput("analyte", "Analyte:", 
+                         choices = unique(chem_simplified$chem)),
+             selectInput("dredged", "Dredged:", 
+                         choices = c("Y","N")),
+             sliderInput("year", label="Year:", min=min(chem_simplified$Year), max=max(chem_simplified$Year), 
+                         value=min(chem_simplified$Year), animate = TRUE)
+           ),
+           # Show the time series GGplot in the main panel
+           mainPanel(
+             plotOutput("PollutionGraph")
+           )
+         ),
+         
+         # Define the server/output
+         server = function(input, output) {
+           # Define the Analyte_Station_TimeSeries output  as the TS plot in fn above  
+           output$PollutionGraph <- renderPlot({
+             
+             depth_plot<- ggplot() +  ggtitle(chemical, subtitle="Mean Observed Values by Year and River Mile") +
+               # Rectangles to simulate core depths and values
+               geom_tile(data=chem_simplified[chem==input$analyte & dredged_flag==input$dredged & Year==input$year], 
+                         aes(x=RM_up,y=Year, fill=log(obs_mean))) + # Color by log-value
+               theme_bw() + scale_fill_gradientn(colors=wpal(chem_info[["colors"]])) +
+               guides(fill=guide_colourbar(title=paste0("log-transformed \n",chem_info[["unit"]]), 
+                                           title.position="top", barheight=10,
+                                           barwidth=1, label=TRUE, ticks=FALSE, direction="vertical")) +
+               facet_wrap(~Depth,ncol=1,strip.position="right")+theme(strip.background = element_blank())
+             print(depth_plot)
+             
+           })
+         },
+         options = list(height = 500) # Define how big this visualization GUI is
+       )
+       
+       ```
  

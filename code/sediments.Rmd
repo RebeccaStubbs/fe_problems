@@ -1,24 +1,41 @@
 ---
 title: "Sediments"
 output: html_document
+#runtime: shiny
 ---
 
-# First Forays and Data Explorations
+## Prompt
 
-Before creating the final products, I've done some preparation and basic exploration, generally scoping out the data set, and preparing it for downstream analysis. 
+Given the attached dataset:
+
+1.Divide the site into spatial and depth “zones” (groups, regions, strata) based on chemistry of Total PCBs, Arsenic, and PAHs.
+
+2.Are there upstream to downstream patterns? If so, what are the differences between chemicals?
+		
+3.Describe the trends you found and the tools/approaches that you used. Provide PDF maps, tables, and statistics depicting the spatial zones, strata, and groupings.
+
+
+To help myself frame this exercise, I found it useful to pose two main questions: Where (both in terms of river mileage/spatial location) 
+
+The real challenge here is data dimensionality-- although a holistic picture of the factors that influence 
+
+between core depth, detection, 
+We're presumably more interested in presence here rether than absence-- samples that are too low below detection (although)
+
+
+# Data Prep
+
+With some snooping around the data source, I've determined that this is Duwamish Waterway, running through the rougher, industrial neighborhoods of south Seattle.
 
 ```{r, setup, include=TRUE, warning=F, message=F}
 
 rm(list=ls()) # Clear working environment
 library("MapSuite") #Self-written library, has many common libs as dependencies
 
-# Duwamish Waterway Data (Dataset B)
-# Worth noting here that the Duwamish effectively runs south, to north: Upstream is south, towards the harbor is north.
-
 # Load in data, which is a spatialpointsdataframe
   chem_sp<-readRDS("Dataset_B.RDS")
   
-# Creating an index-- since the data is only linked to the spatial information via order, we need to make sure it's preserved.
+# Let's get the data out from the spatial object
   chem_data<-data.table(chem_sp@data)
   chem_data[,sp_index:=seq(1:nrow(chem_data))]
   
@@ -27,55 +44,234 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
                              UpperDepth_cm,LowerDepth_cm, Unit,
                              Chemical,ChemicalGroup, SampleDate, 
                              Detected, observed_value=ValueOrHalfQL,dredged_flag=FE_NAVCHAN_F)]
-
-# Some basic cleanup: I only want to know about samples that have a valid entry for "Detected".
-  chem_data<-chem_data[!is.na(Detected)]
   
-# What year was each sample taken?
+# make one field that describes what chemical we are interested in; that way we don't have to subset
+# off of Chemical *or* ChemicalGroup depending on the analyte
+  chem_data[Chemical=="Arsenic",chem:="Arsenic"]
+  chem_data[Chemical=="Total PCBs",chem:="PCBs"]
+  chem_data[ChemicalGroup=="PAHs",chem:="PAHs"]
+  
+# Make decimal date
+  chem_data[,decimal_date:=lubridate::decimal_date(SampleDate)]
+  
+# Some basic cleanup: I only want to know about samples that have a valid entry for "Detected", and that
+# have non-NA values for observed chemical value
+  chem_data<-chem_data[!is.na(Detected)&!is.na(observed_value)]
+
+# What year was each sample taken? Extract from the sample time. 
   chem_data[,Year:=as.numeric(substr(as.character(chem_data$SampleDate),1,4))]
 
-# # If it was dredged, how many years ago was it dredged?
-#   chem_data[DredgeYear=="2003/2004",DredgeYear:="2004"] #Assign ambiguous year ("2003/2004") later year, since we can't assume more time ahs passed than actually has between dredging and sampling.
-#   chem_data[,DredgeYear:=as.numeric(DredgeYear)]
-#   chem_data[,dredge_gap:=Year-DredgeYear]
+# Let's try a log-transform for the value variables; this might be useful later on
+  chem_data[,log_value:=log(observed_value)]
+  
+# Adding a column of "noise" to be able to jitter our plots
+  chem_data[,noise:=rnorm(nrow(chem_data),mean=0,sd=.2)]   
+```
 
-    chem_data[,log_value:=log(observed_value)] # Let's try a log-transform for the value variables 
-    
-    # Check out sample mid-points, categorize into mid-point groups for core depth
-    chem_data[,sample_midpoint:=(LowerDepth_cm-UpperDepth_cm)/2] # Generate mid-point of samples
-    chem_data[,sample_midpoint_group:=findInterval(sample_midpoint, seq(0,275,25))*25] # Categorizing into max depths
-    chem_data[,noise:=rnorm(nrow(chem_data),mean=0,sd=.2)] # Adding a column of "noise" to be able to jitter our plots
-    
+To make looping through the different chemicals easier, I've made a named list with a specific color pallete to keep them straight, and their units. 
+
+```{r}
 # Making a structured list for each of the chemicals with data sets, units, and 
-    chemlist<-list()
-    chemlist[["PAHs"]]<-list(dataset=chem_data[ChemicalGroup=="PAHs",],colors="thanksgiving",name="PAHs",unit="ug/kg dw")
-    chemlist[["Arsenic"]]<-list(dataset=chem_data[Chemical=="Arsenic",],colors="seaside",name="Arsenic",unit="ug/kg dw")
-    chemlist[["PCBs"]]<-list(dataset=chem_data[Chemical=="Total PCBs"],colors="skyforest",name="PCBs",unit="ug/kg dw")
+chemlist<-list()
+chemlist[["PAHs"]]<-list(colors="foliage",name="PAHs",unit="ug/kg dw")
+chemlist[["Arsenic"]]<-list(colors="ocean",name="Arsenic",unit="mg/kg dw")
+chemlist[["PCBs"]]<-list(colors="berries",name="PCBs",unit="ug/kg dw")
+```
+
+I also find the fact that River-Miles are based on distance from the mouth of the stream's outlet to the ocean, rather than distance from the furthest upstream point, to be confusing, and I like my graph and chart axes such that "trajectory" is moving away from the lowest value. To make this more straightforward, I'll create a "flipped" river-mile counter, in which the measurement represents the distance from the furthest-upstream-point measured in the data set.
+
+```{r}
+chem_data[,RM_up:=max(RM,na.rm=T)-RM]
+```
+
+## Step 1: Define depth strata based on common sampling depth combinations 
+
+The first step here is to determine different "layers" of sediment we are interested in-- to do this, we need to know what samples were taken, and where-- is there a consistent pattern of depths cored? To scope this out, I made some graphs by river-mile and depth core, to see what patterns appear in the data. 
+
+This is naive to things like river bottom depth, but it's a good first stab. 
+
+```{r,message=F,warning=F, fig.width=10, fig.asp=.4}
+for (chemical in names(chemlist)){
+  chem_info<-chemlist[[chemical]]
     
+  p1<-ggplot() +  
+    # Rectangles to simulate core depths and values
+     geom_rect(data=chem_data[chem==chemical & Detected=="Yes",], 
+              aes(xmin=RM_up+noise, xmax=RM_up+noise+.02, # River-mile as x-axis, plus some noise for 
+                                                    # differentian of samples and artificial width
+              ymin=-1*UpperDepth_cm, ymax=-1*LowerDepth_cm,  # Use upper/lower limit as core sample depth limits
+              fill=log_value)) + # Color by log-value
+
+    # Formatting and Labeling
+    ggtitle(chem_info[["name"]], 
+            subtitle="Values above detection threshold, visualized by Core Depth and River Miles") +
+    xlab("River Miles From Most Upstream Point") + ylab("Core Depth, cm") + 
+    theme_bw() + scale_fill_gradientn(colors=wpal(chem_info[["colors"]])) +
+    guides(fill=guide_colourbar(title=paste0("log-transformed \n",chem_info[["unit"]]), 
+                                title.position="top", barheight=10, 
+                                barwidth=1, label=TRUE, ticks=FALSE, 
+                                direction="vertical"))+ylim(-600,0)
+   
+  print(p1)
+}
+```
+
+It looks like there are many different common core sampling depths, but, to keep this analysis tractable, we'll stick with 4 zones: "Surface", with the midpoint of the sample falling between 0-10 cm, "Near-Surface", with the midpoint depth of the sample falling between 10cm and 2 feet deep, "Mid-layer", with samples between 2-6 feet deep, and "Deep", with all samples beyond 6 feet below the river bottom. Some of these cores may span more than one of these categories-- to aoid "double-counting" the data points in multiple sedimentary strata, I'll use the depth midpoint of the core sample to assign categories. 
+
+
+```{r}
+# Generate factor-data-type classification based on sample depth with defined cut-points
+    chem_data[,sample_midpoint:=(LowerDepth_cm+UpperDepth_cm)/2] # Generate mid-point of core samples
+    chem_data[,Depth:=cut(sample_midpoint,breaks=c(0,10,61,182,10000),
+                          labels=c("Surface","Near-Surface","Mid-Layer","Deep"))]
+    chem_data[,Depth:=as.factor(Depth)]
+```
+
+Let's create the categories, and sanity-check that they seem to be in the right categories based on one of the chemicals:
+
+```{r,message=F,warning=F, fig.width=10, fig.asp=.4}
+# Make a sanity-check Plot
+
+  # Define a color pallette for the factor variable, Depth
+  SedColors<-wpal("warm_brown",noblack=T,n=4)
+  names(SedColors) <- c("Surface","Near-Surface","Mid-Layer","Deep")
+  
+  # Make GGplot
+  zone_plot<-ggplot() +  
+    # Show zones as dotted lines underneath data plots
+          geom_hline(yintercept = -10, linetype="dotted") + # Boundary for Shallow and Near-Surface
+          geom_hline(yintercept=-61, linetype="dotted") +  # Boundary between Near-Surface and Mid-layer
+          geom_hline(yintercept=-182, linetype="dotted") + # Boundary between Middle and Deep Zone
+    # Show cores in their respective zones
+            geom_rect(data=chem_data[chem=="Arsenic",], 
+                    aes(xmin=RM_up+noise, xmax=RM_up+noise+.02, 
+                    ymin=-1*UpperDepth_cm, ymax=-1*LowerDepth_cm, fill=Depth)) + 
+          scale_fill_manual(name = "",values = SedColors, drop=F) +
+          xlab("River Miles From Most Upstream Point") + ylab("Core Depth, cm") +ylim(-600,0) +
+          ggtitle("Sediment Zones", subtitle="Visualizing Arsenic Samples across all time") + theme_bw()
+
+     print(zone_plot)
+```
+
+We can see that some of the samples do indeed cross strata lines, but for the most part, this looks good, and a relatively clean representation of depth strata for the samples. 
+
+
+
+
+It's an over-simplification, but for now, I'm just going to ignore x-y position in favor of River Miles. 
+
+```{r}
+#for (chemical in names(chemlist)){
+chemical<-"Arsenic"
+      chem_info<-chemlist[[chemical]]
+        
+      p1<-ggplot() +  
+        # Rectangles to simulate core depths and values
+         geom_point(data=chem_data[chem==chemical & 
+                                     dredged_flag=="N" &
+                                     Depth=="Surface"], 
+                  aes(y=SampleDate,x=RM_up, 
+                  color=log_value)) + # Color by log-value
+
+        # Formatting and Labeling
+        ylab("Sample Date") + xlab("Distance from Ocean (miles)") + 
+        ggtitle(chem_info[["name"]], 
+                subtitle="Observations Above Detection Threshold") +
+        theme_bw() + scale_color_gradientn(colors=wpal(chem_info[["colors"]])) +
+        guides(color=guide_colourbar(title=paste0("log-transformed \n",chem_info[["unit"]]), 
+                                     title.position="top", barheight=10, 
+                                    barwidth=1, label=TRUE, ticks=FALSE, direction="vertical"))
+       
+      print(p1)
+#}
+```
+
+Since there are observations in each river-mile from one bank to another, let's reduce the dimensionality even more, and create some summary statistics for each tenth of a river mile, and year combination. 
+```{r}
+chem_<-chem_data[!is.na(chem) & Detected=="Yes", # Restrict data to only the analytes we care about, and
+                                                           # where it was detected
+                           list(obs_max=max(observed_value),
+                                obs_mean=mean(observed_value),
+                                Unit),
+                           by=c("chem","Year","RM_up")] # Do these summary statistics for each chemical, 
+                                                # in each year, for each tenth-of-a-river-mile combination,
+                                                # for dredged and un-dredged sediments.
+
+chem_simplified<-chem_data[!is.na(chem) & Detected=="Yes", # Restrict data to only detected values of the 3 chems
+                           list(obs_max=max(observed_value), obs_mean=mean(observed_value), Unit),
+        # Do these summary statistics for each chemical, year, dredge-category, depth-category,river-tenth-mile
+                           by=c("chem","Year","RM_up","dredged_flag","Depth")] 
+                     
+
+```
+
+There is no uncertainty with these measurements..
+
+```{r, fig.width=10, fig.asp=.4}
+for(chemical in names(chemlist)){
+  chem_info<-chemlist[[chemical]]
+  depth_plot<- ggplot() +  ggtitle(chemical, subtitle="Mean Observed Values by Year and River Mile") +
+        # Rectangles to simulate core depths and values
+         geom_tile(data=chem_simplified[chem==chemical&dredged_flag=="N"], # Exclude dredged areas, for now
+                  aes(x=RM_up,y=Year, fill=log(obs_mean))) + # Color by log-value
+         xlab("Miles from Most Upstream Point") + 
+         theme_bw() + scale_fill_gradientn(colors=wpal(chem_info[["colors"]])) +
+         guides(fill=guide_colourbar(title=paste0("log-transformed \n",chem_info[["unit"]]), 
+                                     title.position="top", barheight=10,
+                                     barwidth=1, label=TRUE, ticks=FALSE, direction="vertical")) +
+        facet_wrap(~Depth,ncol=1,strip.position="right")+theme(strip.background = element_blank())
+  print(depth_plot)
+}
+```
+
+Upstream-Downstream patterns? 
+
+```{r}
+  ggplot() +  
+  ggtitle("Highest obsered values, all sediment depths")+
+        # Rectangles to simulate core depths and values
+         geom_line(data=chem_[chem=="Arsenic"], 
+                  aes(x=RM_up,y=log(obs_max), color=Year)) # Color by log-value
+```
+
+
+Plotting the river, mile-by-mile:
+```{r, fig.width=10, fig.asp=.3}
+chemical<-"Arsenic"
+chem_info<-chemlist[[chemical]]
+var<-"RM"
+
+# Let's see if we can find the dredged navigation channel/explore the dredging history
+lim<-c(min(chem_data[chem==chemical][[var]],na.rm=T),max(chem_data[chem==chemical][[var]],na.rm=T))
+
+full_map<-MapSuite::PointMap(coords=chem_data[chem==chemical],id="sp_index",xcol="X",ycol="Y",variable=var,
+                  map_title="River Miles",map_colors = wpal("betafish"),
+                  legend_position = "bottom", return_objects = T, legend_orientation = "horizontal", 
+                  include_titles=T, map_colors_limits = lim )$map
+
+maps<-list()
+for(river_mile in seq(0:3)){
+maps[[paste0("RM_",river_mile)]]<-MapSuite::PointMap(coords=chem_data[chem==chemical & 
+                                                     (RM>=river_mile) & (RM<river_mile+ifelse(river_mile==3,1,2))],
+                                                     map_title=paste0("RM ",river_mile,ifelse(river_mile==3,"+","")),
+                                                     id="sp_index",xcol="X",ycol="Y",variable=var,
+                                                     map_colors = wpal("betafish"),
+                                                     legend_position = "none",
+                                                     return_objects=T, map_colors_limits = lim, 
+                                                     include_titles = T)$map
+}
+
+plots_by_rivermile<-cowplot::plot_grid(maps[[1]],maps[[2]],maps[[3]],maps[[4]],align="h",nrow=1)
+```    
+
+Plot the full length of the stream:
+```{r, fig.width=10, fig.asp=1.4, echo=F}
+print(full_map)
 ```
 
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+Plot by river-mile:
+```{r, fig.width=10, fig.asp=.3, echo=F}
+print(plots_by_rivermile)
 ```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
