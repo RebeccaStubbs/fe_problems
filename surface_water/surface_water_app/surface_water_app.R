@@ -15,11 +15,10 @@ library(lme4) # Mixed-effects modeling package
 library(htmlTable)
 
 # Read in surface water observations as data.table sw
-setwd("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/code/")
 sw<-fread("Dataset_C.csv")
 
-## Dataset Prep
-    
+#____________________________________________ Dataset Prep ________________________________________
+
     # Parse out date information from character date column
     sw[,index:=seq(1:nrow(sw))]
     sw[,Month:=as.numeric(strsplit(SampleDate,"/")[[1]][1]),by=index] 
@@ -43,19 +42,23 @@ sw<-fread("Dataset_C.csv")
     #analyte by site and globally/for all samples
     sw[,mean_conc:=mean(StandardResult,na.rm=T),
        by=list(StationName,StandardAnalyte)]
-    
-    # Just in case a log-transform would be more informative, 
-    # although NaNs will exist where the observation is negative
-    sw[,log_obs:=log(StandardResult)] 
 
-## Functions for Graphing
-    # Define function for p using the HexBin Frequency graphics, where the number of 
+#____________________________________________ Graphing Functions ________________________________________
+    
+    # Define function for plots using the HexBin Frequency graphics, where the number of 
     #stations with an observation in that category is essentially heat-mapped
-    plot_full_ts<-function(a){
-      p<-ggplot(sw[StandardAnalyte==a], aes(x=Date, y=StandardResult)) + 
+    plot_full_ts<-function(a, s){
+      
+      if(s=='All Stations'){
+        subset_df<-sw[StandardAnalyte==a]
+      }else{
+        subset_df<-sw[StandardAnalyte==a & StationName==s]
+      }
+      
+      p<-ggplot(subset_df, aes(x=Date, y=StandardResult)) + 
         geom_hex() + # honeycomb-plot geometry
         scale_x_date(labels = function(x) format(x, "%b-%y")) + xlab("Time") +
-        ylab(sw[StandardAnalyte==a]$StandardUnit[1]) + 
+        ylab(subset_df$StandardUnit[1]) + 
         ggtitle(paste0(a), 
                 (subtitle="Observations Over Full Time Series, All Stations")) + 
         theme_bw() + scale_fill_gradientn(colors=wpal("berries")) +
@@ -65,15 +68,23 @@ sw<-fread("Dataset_C.csv")
       return(p)
     }
     
-    plot_by_month<-function(a){
-      p<-ggplot(sw[StandardAnalyte==a], aes(x= Month, y=log_obs)) + geom_hex() + 
+    plot_by_month<-function(a, s){
+      
+      if(s=='All Stations'){
+        subset_df<-sw[StandardAnalyte==a]
+      }else{
+        subset_df<-sw[StandardAnalyte==a & StationName==s]
+      }
+      
+      p<-p<-ggplot(subset_df, aes(x= Month, y=StandardResult)) + 
+        geom_hex() + # honeycomb-plot geometry
         ggtitle(paste0(a), 
                 subtitle="Observations in Each Month, All Years, All Stations") + 
         scale_x_continuous(limits=c(1,12),breaks=seq(1,12), 
                            labels=c("Jan","Feb","Mar","Apr",
                                     "May","Jun","Jul","Aug",
                                     "Sep","Oct","Nov","Dec")) +
-        ylab(sw[StandardAnalyte==a]$StandardUnit[1]) + theme_bw() + 
+        ylab(subset_df$StandardUnit[1]) + theme_bw() + 
         scale_fill_gradientn(colors=wpal("berries")) +
         guides(fill=guide_colourbar(title="N Stations", title.position="top", 
                                     barheight=10, barwidth=1, direction="vertical",
@@ -88,23 +99,29 @@ sw<-fread("Dataset_C.csv")
     # Define function to generate plot
     MakeAnalyteTSPlot<-function(a,s){
       
-      p<-ggplot(sw[StandardAnalyte==a & StationName==s], 
+      if(s=='All Stations'){
+        subset_df<-sw[StandardAnalyte==a]
+        }else{
+        subset_df<-sw[StandardAnalyte==a & StationName==s]
+      }
+      
+      p<-ggplot(subset_df, 
                 aes(x= Date, y=StandardResult, color=Season)) + geom_point(size=4) + 
         xlab("Date of Sample") + 
         scale_x_date(labels = function(x) format(x, "%b-%y")) + 
-        ylab(sw[StandardAnalyte==a & StationName==s]$StandardUnit[1]) + 
-        ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
+        ylab(subset_df$StandardUnit[1]) + 
+        ggtitle(a, subtitle=paste0("Station ",s)) + theme_bw()  + 
         scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
-        geom_hline(yintercept = sw[StandardAnalyte==a &
-                                     StationName==s]$mean_conc[1]) + 
-        annotate("text", min(sw[StandardAnalyte==a & StationName==s]$Date), 
-                 sw[StandardAnalyte==a & StationName==s]$mean_conc[1], 
+        geom_hline(yintercept = mean(subset_df$StandardResult,na.rm=T)) + 
+        annotate("text", min(subset_df$Date), 
+                 subset_df$mean_conc[1], 
                  vjust = -1, label = "Mean")
       
       return(p)  
     }
 
-# Initiate a shiny application
+     
+#____________________________________________ Initiate a shiny application ________________________________________
 shiny::shinyApp(
 
   # Define the User Interface
@@ -114,9 +131,9 @@ shiny::shinyApp(
     # Sidebar with a selectable input for analytes and stations
       sidebarPanel(
          selectInput("analyte", "Analyte:",
-                    choices = unique(sw$StandardAnalyte)),
+                    choices = sort(unique(sw$StandardAnalyte))),
           selectInput("station", "Station:",
-                    choices = unique(sw$StationName))
+                    choices = c("All Stations",unique(sw$StationName)))
       ),
     # Show the time series GGplot in the main panel
       mainPanel(
@@ -134,17 +151,23 @@ shiny::shinyApp(
     
     # Define the Analyte_Station_TimeSeries output  as the TS plot in fn above
       output$Analyte_Station_TimeSeries <- renderPlot({
-        ts<-MakeAnalyteTSPlot(a=input$analyte,s=input$station) # Get inputs from UI, use function
+        a<-input$analyte
+        s<-input$station
+        ts<-MakeAnalyteTSPlot(a=a,s=s) # Get inputs from UI, use function
         print(ts)
       })
       
       output$analyte_ts <- renderPlot({
-        analyte_ts<-plot_full_ts(input$analyte) # Get inputs from UI, use function
+        a<-input$analyte
+        s<-input$station
+        analyte_ts<-plot_full_ts(a=a, s=s) # Get inputs from UI, use function
         print(analyte_ts)
       })
       
       output$analyte_month <- renderPlot({
-        analyte_month<-plot_by_month(input$analyte) # Get inputs from UI, use function
+        a<-input$analyte
+        s<-input$station
+        analyte_month<-plot_by_month(a=a, s=s) # Get inputs from UI, use function
         print(analyte_month)
       })
       

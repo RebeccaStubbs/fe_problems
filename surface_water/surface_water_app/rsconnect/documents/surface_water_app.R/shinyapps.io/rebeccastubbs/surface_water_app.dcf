@@ -1,0 +1,12 @@
+name: surface_water_app
+title: surface_water_app
+username:
+account: rebeccastubbs
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 282352
+bundleId: 1225097
+url: https://rebeccastubbs.shinyapps.io/surface_water_app/
+when: 1518727201.97895
+asMultiple: FALSE
+asStatic: FALSE

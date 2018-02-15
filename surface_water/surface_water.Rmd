@@ -83,10 +83,6 @@ Also, I calculate the mean concentration of each analyte, as well as a log-trans
 #analyte by site and globally/for all samples
 sw[,mean_conc:=mean(StandardResult,na.rm=T),
      by=list(StationName,StandardAnalyte)]
-
-# Just in case a log-transform would be more informative, 
-# although NaNs will exist where the observation is negative
-sw[,log_obs:=log(StandardResult)] 
 ```
 
 ## Plotting Each Analyte by Station, Over Time
@@ -128,6 +124,8 @@ Before iterating over all of the analytes and stations, and saving them to PDFs,
 
 Rather than simply having .PDFs, I sometimes find it useful to create a quick and dirty interactive visualization, with options to select and sub-set data. This won't work in a static file format like .PDF, but you can check out an interactive version of this plot, and some of the plots below,for each station and analyte, at this URL:  **!!!<include screenshot here>!!!**
 
+[Screen-Capture of Interactive Tool Available Online]("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/surface_water/intearactive_screencap.png")
+
 \newpage
 
 # Quantifying Seasonality
@@ -165,7 +163,7 @@ Let's try pooling observations across stations and also years, to get a rough se
 ```{r,fig.asp=.5}
 # Plotting by Month, for all years, all stations 
 plot_by_month<-function(a){
-p<-ggplot(sw[StandardAnalyte==a], aes(x= Month, y=log_obs)) + geom_hex() + 
+p<-ggplot(sw[StandardAnalyte==a], aes(x= Month, y=StandardResult)) + geom_hex() + 
   ggtitle(paste0(a), 
           subtitle="Observations in Each Month, All Years, All Stations") + 
   scale_x_continuous(limits=c(1,12),breaks=seq(1,12), 
@@ -199,14 +197,16 @@ The model:
 analyte<-sw[StandardAnalyte=="Temperature"]
 
 # Testing out a linear model with temperature
-mod <- lmer(StandardResult  ~ 1+ (1|Year)+(1|Season),data=analyte)
+mod <- lme4::lmer(StandardResult  ~ 1+ (1|Year)+(1|Season),data=analyte)
 summary(mod)
 ```
+
 The model has fit intercept shifts for each season category based on the idea that each season's deviation from the global mean is pulled from a mean 0, normal distribution, with the standard deviation of this distribution as a modeled parameter-- the fact that the distribution for 'year' has a lower standard deviation than the distribution for 'season' is interesting here, but doesn't directly speak to the impact of seasonality on the data. Taking a look at the coefficients, we can see the estimated values of the random intercepts based on each year and season category:
 
 ```{r}
 htmlTable(coef(mod)$Season) # See Season modeled random effects
 ```
+
 To determine how much seasons "matter" for each analyte, we can compare the observed data with and "without" seasonality. I will subtract the model estimated intercept shifts from the observed data points, based on which season the data were taken-- this is functionally the same as having fed the model new data to 'predict' values, in which the new, season-free data belongs to none of the seasonal sub-groups that the model was fit on. Then, I calculate how different, on average, the seasonally adjusted data points are from the raw data points.
 
 ```{r}
@@ -290,53 +290,11 @@ Some really interesting results here-- it seems like Temperature,
 plot_full_ts("Vanadium, total")
 plot_by_month("Vanadium, total")
 
-alm<-mods[["Aluminum, total"]]
-summary(alm)
-plot_full_ts("Aluminum, total")
-plot_by_month("Vanadium, total")
+pH<-mods[["pH"]]
+(summary(pH))
+plot_full_ts("pH")
+plot_by_month("pH")
 ```
-
-To get a sense of how substantial each season's effect is, we can compare the magnitude of the seasonal effect to the intercept (the otherwise expected value, once year is controlled for):
-
-## Fit GAMM with knots for each season and year
-
-Another possible approach is to fit a general additive mixed model, where the long-term time trend and the short-term, periodic seasonal trends are conceptualized by cubic splines. 
-
-There is some discussion of the number of knots that are appropriate for seasonal land (not water) surface temperature changes in this paper here: http://www.mdpi.com/2072-4292/9/12/1254/pdf; however, it is discussed that the ideal number of knots for their model to represent seasonality (8) may not be appropriate for other applications. 
-
-```{r}
-# Pulling from https://www.fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
-# 1 knot every 6 months, 1 knot for each year of data?
-m0 <- mgcv::gamm(StandardResult ~ s(Month, bs = "cc", k = 6) + s(month_index, k = 3) + as.factor(StationName), data = analyte)
-
-plot(m0$gam, scale = 0, main = "GAMM fit", xlab = "Month", ylab = paste0(a," Seasonal Effect"))
-```
-
-Let's try a linear model with a sin and cosine function
-
-```{r}
-mod <- lm(log_obs  ~ sin(2*pi*(month_index/12))+cos(2*pi*(month_index/12))+StationName,data=analyte)
-summary(mod)
-
-plot(log_obs~month_index,data=analyte)
-plot(analyte$month_index,mod$fitted.values)
-```
-
-A note on the analytes for which 
-https://stats.stackexchange.com/questions/115090/why-do-i-get-zero-variance-of-a-random-effect-in-my-mixed-model-despite-some-va
-
-## Linear Model with 
-
-```{r}
-mod <- lm(StandardResult  ~ sin(2*pi*(month_index/12))+cos(2*pi*(month_index/12))+StationName+Year,data=analyte)
-summary(mod)
-
-plot(StandardResult~month_index,data=analyte)
-lines(mod$fitted.values,analyte$month_index,col=2)
-
-analyte[,fitted:=mod$fitted.values]
-```
-
 
 ## Generate PDF of results for each Analyte
 
@@ -345,7 +303,7 @@ for ( a in unique(sw$StandardAnalyte)){
   analyte<-sw[StandardAnalyte==a] # Subset data to only relevant analyte
   
   # Start a PDF document of results
-    pdf(paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/results/surface_water/",a,".pdf"))
+    pdf(paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/surface_water/",a,".pdf"))
 
      # Generate plot for each Analyte over time, for each station. 
       for (s in unique(sw$StationName)){ 
