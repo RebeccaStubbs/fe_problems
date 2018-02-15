@@ -27,14 +27,23 @@ Given the attached dataset:
 
 There seem to be two stages of tasks set forth here: the first, to do some data visualization of a multi-dimensional data set, and the second, to determine which of the analytes show strong seasonal variability. Before diving into the seasonality analysis, I first tackled the data visualization of the observations by analyte and station. 
 
+__NB: This document is as a .pdf rendering of an R Markdown, which allows for the integration of documentation, code, and outputs. What follows is all of the code required to process the data, and generate the outputs for this exercise.__
+
 ##  First Forays and Data Explorations
 
 Reading in the data, loading relevant libraries:
 ```{r, setup, include=TRUE, warning=F, message=F}
+# Surface Water Data Viz and Seasonality; RStubbs 02/2018
+# Generates plots and calculates sesaonally-adjusted data
+# to compare to raw data to determine magnitude of seasonality
+# Input: Surface water observations by station-analyte
+
 rm(list=ls()) # Clear working environment
 
 library("MapSuite") #Self-written library, has many common libs as dependencies
 library("hexbin") # For the hex-bin plots
+library(lme4) # Mixed-effects modeling package
+library(htmlTable)
 
 # Read in surface water observations as data.table sw
 #setwd("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/code/")
@@ -86,7 +95,7 @@ In order to make plotting by each station and analyte straightforward, I have wr
 
 ```{r}
 # Define a color pallette for the factor variable, Season
-SeasonColors<-wpal("foliage",noblack=T,n=4)
+SeasonColors<-wpal("foliage",noblack=T,n=4) # grab colors from MapSuite's pallettes
 names(SeasonColors) <- c("Winter","Spring","Summer","Fall")
 
 # Define function to generate plot
@@ -117,13 +126,13 @@ Before iterating over all of the analytes and stations, and saving them to PDFs,
   print(ts)
 ```
 
-Rather than simply having .PDFs, I sometimes find it useful to create a quick and dirty interactive visualization, with options to select and sub-set data. This won't work in a static file format like .PDF, but you can check out an interactive version of this plot, for each station and analyte, at this URL:  **!!!<include screenshot here>!!!**
+Rather than simply having .PDFs, I sometimes find it useful to create a quick and dirty interactive visualization, with options to select and sub-set data. This won't work in a static file format like .PDF, but you can check out an interactive version of this plot, and some of the plots below,for each station and analyte, at this URL:  **!!!<include screenshot here>!!!**
 
 \newpage
 
 # Quantifying Seasonality
 
-The fundamental question here seems to be, "to what extent is the variability in the data due to seasonal effects, rather than annual or other differences"? Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or the influence of other unknown factors.  
+The fundamental question here seems to be, "to what extent is the variability in the data due to seasonal effects, rather than annual or other differences?" Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or the influence of other unknown factors.  
 
 Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation. 
 
@@ -132,11 +141,10 @@ Given the data constraints, a few different strategies came to mind. As a test c
 As a first pass, I made a frequency plot that showed the observed values across the entire time period, for all stations. 
 
 ```{r, fig.asp=.5}
-a<-"Temperature"
-
 # Plotting using the HexBin Frequency graphics, where the number of 
 #stations with an observation in that category is essentially heat-mapped
-ggplot(sw[StandardAnalyte==a], aes(x=Date, y=StandardResult)) + 
+plot_full_ts<-function(a){
+p<-ggplot(sw[StandardAnalyte==a], aes(x=Date, y=StandardResult)) + 
   geom_hex() + # honeycomb-plot geometry
   scale_x_date(labels = function(x) format(x, "%b-%y")) + xlab("Time") +
   ylab(sw[StandardAnalyte==a]$StandardUnit[1]) + 
@@ -146,29 +154,188 @@ ggplot(sw[StandardAnalyte==a], aes(x=Date, y=StandardResult)) +
   guides(fill=guide_colourbar(title="N Stations", 
                               title.position="top", barheight=10, barwidth=1,
                               label=TRUE, ticks=FALSE, direction="vertical")) 
+return(p)
+}
+plot_full_ts("Temperature")
 ```
 
+\newpage
 Let's try pooling observations across stations and also years, to get a rough sense of seasonality from a graphical persepective: 
 
 ```{r,fig.asp=.5}
 # Plotting by Month, for all years, all stations 
-months_in_order<-c("Jan","Feb","Mar","Apr",
-                   "May","Jun","Jul","Aug",
-                   "Sep","Oct","Nov","Dec")
-
-# Non-Transformed
-ggplot(sw[StandardAnalyte==a], aes(x= Month, y=log_obs)) + geom_hex() + 
+plot_by_month<-function(a){
+p<-ggplot(sw[StandardAnalyte==a], aes(x= Month, y=log_obs)) + geom_hex() + 
   ggtitle(paste0(a), 
           subtitle="Observations in Each Month, All Years, All Stations") + 
-  scale_x_continuous(limits=c(1,12),breaks=seq(1,12), labels=months_in_order) +
+  scale_x_continuous(limits=c(1,12),breaks=seq(1,12), 
+                   labels=c("Jan","Feb","Mar","Apr",
+                   "May","Jun","Jul","Aug",
+                   "Sep","Oct","Nov","Dec")) +
   ylab(sw[StandardAnalyte==a]$StandardUnit[1]) + theme_bw() + 
     scale_fill_gradientn(colors=wpal("berries")) +
   guides(fill=guide_colourbar(title="N Stations", title.position="top", 
                               barheight=10, barwidth=1, direction="vertical",
-                              label=TRUE, ticks=FALSE)) 
+                              label=TRUE, ticks=FALSE))
+return(p)
+}
+plot_by_month("Temperature")
 ```
 
-Looks like there's a trend there to the casual eye, but interesting to note that there are no observations during the winter months whatsoever. 
+It looks like there is a trend there to the casual eye, but it is interesting to note that there are very, very few observations during the winter months for this analyte. Furthemore, in the plot across all time, it appears that the summer months were colder in later years. Versions of these plots can also be found on the same interactive data visualization at the URL **!!!!!!URL!!!!!** 
+
+To determine the impact of seasonality on the measurements, it's necessary to disentangle how much of the apparent differences are caused by annual trends. To achieve this goal, I fit a model that included terms for both year, and season.
+
+## Using a mixed-effects* model to tease out seasonality from the data
+
+I used a relatively bare-bones model, with parameters for an intercept with respect to all of the data, and deviations from that intercept (modeled as random effects) for each year and season. Including the season and year variables in the model this way, as sub-classifications of the data set, removes the idea of temporal "trajectory" or sequence, which may not exist, or which may reverse direction mid-way in the time period due to some sort of effect or intervention. Furthermore, from a theory standpoint, this model expresses that the deviations seen in the observations are the product of a stochastic process we have not observed, and that by default, these subgroups are likely to be deviations from an overall pattern (the 'global' intercept). 
+
+An initial stab at this model also included the sampling station such that the model would have a random intercept for each station as well-- however, insufficient data for many of the observation sites (on the order of 2-3 observations for the full time period for Temperature, for instance) makes inference about the individual station's expected deviation from the mean dubious, and including them seemed like an excessive number of parameters to fit for this exercise. Knowing that certain sites group together might be one way to improve this-- for instance, if all of the "FE-ET" stations could be considered together, it would likely improve the model's estimate, and would better disentangle variation due to site-specific conditions rather than seasonality or annual differences.
+
+* Note that this modeling technique is called something different by almost every discipline...Wikipedia informs me that these models are also called multilevel models, hierarchical linear models, nested data models, random coefficient, random-effects models, random parameter models, or split-plot designs. 
+
+The model:
+```{r, message=F,error=F}
+analyte<-sw[StandardAnalyte=="Temperature"]
+
+# Testing out a linear model with temperature
+mod <- lmer(StandardResult  ~ 1+ (1|Year)+(1|Season),data=analyte)
+summary(mod)
+```
+The model has fit intercept shifts for each season category based on the idea that each season's deviation from the global mean is pulled from a mean 0, normal distribution, with the standard deviation of this distribution as a modeled parameter-- the fact that the distribution for 'year' has a lower standard deviation than the distribution for 'season' is interesting here, but doesn't directly speak to the impact of seasonality on the data. Taking a look at the coefficients, we can see the estimated values of the random intercepts based on each year and season category:
+
+```{r}
+htmlTable(coef(mod)$Season) # See Season modeled random effects
+```
+To determine how much seasons "matter" for each analyte, we can compare the observed data with and "without" seasonality. I will subtract the model estimated intercept shifts from the observed data points, based on which season the data were taken-- this is functionally the same as having fed the model new data to 'predict' values, in which the new, season-free data belongs to none of the seasonal sub-groups that the model was fit on. Then, I calculate how different, on average, the seasonally adjusted data points are from the raw data points.
+
+```{r}
+# Merge on information from model to analyte data.table
+analyte<-merge(analyte,data.table(Season=levels(analyte$Season),ranef(mod)$Season),
+               by="Season")
+setnames(analyte,"(Intercept)","Seasonal_Adjustment")
+# Create new varaible of seasonally-adjusted data
+analyte[,seasonally_adjusted:=StandardResult-Seasonal_Adjustment]
+# Calculate absolute % difference for each observation
+# % diff equation--> 100 * |a - b| / ((a + b) * 2)
+analyte[,pct_diff:=abs(100*(seasonally_adjusted-StandardResult)/((seasonally_adjusted+StandardResult)*2))]
+```
+
+```{r}
+mean(analyte$pct_diff)
+median(analyte$pct_diff)
+```
+
+Now, we take this process to scale, running the same analysis for each of the analytes. I am excluding the analytes from this analysis for which fewer than 4 seasons were observed. 
+
+```{r,error=F,message=F,warning=F}
+seasonal_summary<-list() # Create empty list for summary results to go into 
+seasonally_adjusted_data<-list() # Create emtpy list for data, adjusted and non, to go to
+mods<-list() # A list to explore the model attributes for each analyte
+
+# Determine list of analytes
+  analytes<-unique(sw$StandardAnalyte)
+# Exclude dissolved mercury; that model is unidentifable apparently
+  analytes<-analytes[!analytes %in% c("Mercury, dissolved")]
+
+  skipped<-c()
+for (a in analytes){ # For each analyte
+
+  # Check to see if all seasons are observed, and proceed, else skip
+  if(length(unique(sw[StandardAnalyte==a]$Season))==4){
+    analyte<-sw[StandardAnalyte==a] # Subset data
+    mod <- lmer(StandardResult  ~ 1+ (1|Year)+(1|Season),data=analyte) # Fit model
+    mods[[a]]<-mod
+    analyte<-merge(analyte,data.table(Season=levels(analyte$Season),ranef(mod)$Season),
+                 by="Season") # Merge intecept shifts onto raw data
+    setnames(analyte,"(Intercept)","Seasonal_Adjustment") # Clarify name
+    # Create new var seasonally-adj data
+    analyte[,seasonally_adjusted:=StandardResult-Seasonal_Adjustment]
+    # Create summary measures; pct_diff
+    analyte[,pct_diff:=abs(100*(seasonally_adjusted-StandardResult)/
+                             ((seasonally_adjusted+StandardResult)*2))]
+  
+    # Add results to lists for easy access later
+    seasonal_summary[[a]]<-data.table(Ananlyte=a,
+                                      median_diff=quantile(analyte$pct_diff,.5),
+                                      mean_diff=mean(analyte$pct_diff), 
+                                      # Add columns on n observations
+                                      N=nrow(analyte),
+                                      Winter=nrow(analyte[Season=="Winter"]),
+                                      Spring=nrow(analyte[Season=="Spring"]),
+                                      Summer=nrow(analyte[Season=="Summer"]),
+                                      Fall=nrow(analyte[Season=="Fall"]))
+    seasonally_adjusted_data[[a]]<-analyte
+  }else{
+    skipped<-c(skipped,a)
+  }
+}
+  print("Skipped analytes:")
+  print(skipped)
+```
+
+Now that we have the summary information from each of the analytes, we can see what analytes had the highest degrees of seasonality: 
+
+```{r}
+seasonal_summary<-rbindlist(seasonal_summary)
+seasonal_summary<-seasonal_summary[order(-median_diff)] # Rank-order
+setnames(seasonal_summary,"mean_diff","% Diff (Mean)")
+setnames(seasonal_summary,"median_diff","% Diff (Median)")
+htmlTable(seasonal_summary, align="l")
+```
+
+Some really interesting results here-- it seems like Temperature, 
+[This stats.stacksexchange post](https://stats.stackexchange.com/questions/115090/why-do-i-get-zero-variance-of-a-random-effect-in-my-mixed-model-despite-some-va) goes into this in detail-- 
+```{r,warning=F,error=F,message=F}
+plot_full_ts("Vanadium, total")
+plot_by_month("Vanadium, total")
+
+alm<-mods[["Aluminum, total"]]
+summary(alm)
+plot_full_ts("Aluminum, total")
+plot_by_month("Vanadium, total")
+```
+
+To get a sense of how substantial each season's effect is, we can compare the magnitude of the seasonal effect to the intercept (the otherwise expected value, once year is controlled for):
+
+## Fit GAMM with knots for each season and year
+
+Another possible approach is to fit a general additive mixed model, where the long-term time trend and the short-term, periodic seasonal trends are conceptualized by cubic splines. 
+
+There is some discussion of the number of knots that are appropriate for seasonal land (not water) surface temperature changes in this paper here: http://www.mdpi.com/2072-4292/9/12/1254/pdf; however, it is discussed that the ideal number of knots for their model to represent seasonality (8) may not be appropriate for other applications. 
+
+```{r}
+# Pulling from https://www.fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
+# 1 knot every 6 months, 1 knot for each year of data?
+m0 <- mgcv::gamm(StandardResult ~ s(Month, bs = "cc", k = 6) + s(month_index, k = 3) + as.factor(StationName), data = analyte)
+
+plot(m0$gam, scale = 0, main = "GAMM fit", xlab = "Month", ylab = paste0(a," Seasonal Effect"))
+```
+
+Let's try a linear model with a sin and cosine function
+
+```{r}
+mod <- lm(log_obs  ~ sin(2*pi*(month_index/12))+cos(2*pi*(month_index/12))+StationName,data=analyte)
+summary(mod)
+
+plot(log_obs~month_index,data=analyte)
+plot(analyte$month_index,mod$fitted.values)
+```
+
+A note on the analytes for which 
+https://stats.stackexchange.com/questions/115090/why-do-i-get-zero-variance-of-a-random-effect-in-my-mixed-model-despite-some-va
+
+## Linear Model with 
+
+```{r}
+mod <- lm(StandardResult  ~ sin(2*pi*(month_index/12))+cos(2*pi*(month_index/12))+StationName+Year,data=analyte)
+summary(mod)
+
+plot(StandardResult~month_index,data=analyte)
+lines(mod$fitted.values,analyte$month_index,col=2)
+
+analyte[,fitted:=mod$fitted.values]
+```
 
 
 ## Generate PDF of results for each Analyte
@@ -190,123 +357,6 @@ for ( a in unique(sw$StandardAnalyte)){
 }
 ```
 
-
-## Use Linear Regression Model Coefficients to quantify seasonal component, by season
-
-Strategy number 1 is running a regression with terms for each year and for each season, to get a sense of the significance and magnitude of seasonal coefficients while "controlling" for annual differences. Both of these variables were included in a linear regression as "dummy" variables, where categories for year and season were represented numerically as presence-absence for each category. Including the season and year variables in the model this way removes the idea of temporal "trajectory" or sequence, which may not exist, or which may reverse direction mid-way in the time period due to some sort of effect or intervention. 
-
-An initial stab at this model also included the sampling station as a variable as well-- however, insufficient data for many of the observation sites (on the order of 2-3 observations for the full time period for Temperature, for instance) makes inference about the individual station's expected deviation from the mean dubious, and virtually none of the sites were statistically significant in the model. Knowing that certain sites group together might be one way to improve this-- for instance, if all of the "FE-ET" stations could be considered together, it would likely improve the model's estimate, and would better disentangle variation due to site-specific conditions rather than seasonality or annual differences.
-
-```{r}
-# Testing out a linear model with temperature
-mod <- lm(StandardResult  ~ as.factor(Year)+Season,data=analyte)
-summary(mod)
-```
-
-
-```{r}
-linear_model_results<-list() # Create empty list for results to go into 
-analytes<-unique(sw$StandardAnalyte)
-analytes<-analytes[!analytes %in% c("Alkalinity, Total", "DOC", "TOC", "TDS, ratio")] # Each of these are creating problems, so to save time, I'm just going to exclude them from this analysis
-
-for (a in analytes){
-  print(a)
-  analyte<-sw[StandardAnalyte==a]
-  
-  # Run the model for the analyte
-  mod <- lm(StandardResult  ~ as.factor(Year)+Season,data=analyte)
-
-# Capture the regression coefficients produced by the model
-  analyte_results<-data.table(analyte=a,coef=names(mod$coefficients),est=mod$coefficients,std_error=coef(summary(mod))[, "Std. Error"])
-
-linear_model_results[[a]]<-analyte_results # Add the table of regression coefficients to the list
-}
-
-linear_model_results<-rbindlist(linear_model_results)
-
-```
-
-To get a sense of how substantial each season's effect is, we can compare the magnitude of the seasonal effect to the intercept (the otherwise expected value, once year is controlled for):
-
-```{r}
-linear_model_results[coef=="(Intercept)", intercept:=est]
-linear_model_results[,intercept:=min(intercept,na.rm=T),by=analyte]
-```
-
-There is some discussion of the number of knots that are appropriate for seasonal land (not water) surface temperature changes in this paper here: http://www.mdpi.com/2072-4292/9/12/1254/pdf; however, it is discussed that the ideal number of knots for their model to represent seasonality (8) may not be appropriate for other applications. 
-
-## Fit GAMM with knots for each season and year
-
-Another possible approach is to fit a general additive mixed model, where the long-term time trend and the short-term, periodic seasonal trends are conceptualized by cubic splines. 
-
-```{r}
-# Pulling from https://www.fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/
-# 1 knot every 6 months, 1 knot for each year of data?
-m0 <- mgcv::gamm(StandardResult ~ s(Month, bs = "cc", k = 6) + s(month_index, k = 3) + as.factor(StationName), data = analyte)
-
-plot(m0$gam, scale = 0, main = "GAMM fit", xlab = "Month", ylab = paste0(a," Seasonal Effect"))
-```
-
-Let's try a linear model with a sin and cosine function
-
-```{r}
-mod <- lm(log_obs  ~ sin(2*pi*(month_index/12))+cos(2*pi*(month_index/12))+StationName,data=analyte)
-summary(mod)
-
-plot(log_obs~month_index,data=analyte)
-plot(analyte$month_index,mod$fitted.values)
-```
-
-## Linear Model with 
-
-```{r}
-mod <- lm(StandardResult  ~ sin(2*pi*(month_index/12))+cos(2*pi*(month_index/12))+StationName+Year,data=analyte)
-summary(mod)
-
-plot(StandardResult~month_index,data=analyte)
-lines(mod$fitted.values,analyte$month_index,col=2)
-
-analyte[,fitted:=mod$fitted.values]
-```
-
-
-
-
-
-```{r, echo = FALSE}
-library(shiny) #Load shiny (an R package for interactive visuaizations)library:
-
-# Initiate a shiny application
-shiny::shinyApp(
-  
-  # Define the User Interface
-    ui = pageWithSidebar(
-      # Application title
-        headerPanel("Time Series for Analyte-Station"),
-    # Sidebar with a selectable input for analytes and stations
-      sidebarPanel(
-         selectInput("analyte", "Analyte:", 
-                    choices = unique(sw$StandardAnalyte)),
-          selectInput("station", "Station:", 
-                    choices = unique(sw$StationName))
-      ),
-    # Show the time series GGplot in the main panel
-      mainPanel(
-        plotOutput("Analyte_Station_TimeSeries")
-      )
-    ),
-
-  # Define the server/output
-  server = function(input, output) {
-    # Define the Analyte_Station_TimeSeries output  as the TS plot in fn above  
-      output$Analyte_Station_TimeSeries <- renderPlot({
-        ts<-MakeAnalyteTSPlot(a=input$analyte,s=input$station) # Get inputs from UI, use function
-        print(ts)
-      })
-  },
-  options = list(height = 500) # Define how big this visualization GUI is
-)
-```
 
 
 
