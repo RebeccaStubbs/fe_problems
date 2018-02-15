@@ -1,10 +1,10 @@
 ---
 title: "Surface Water"
 output:
+  pdf_document: default
   html_document: default
-  toc: true
-  toc_depth: 3 
-runtime: shiny
+  toc: yes
+  toc_depth: 3
 ---
 
 # The Prompt 
@@ -23,11 +23,13 @@ Given the attached dataset:
 
 * Produce a pdf of your plots.
 
+# The Answer/Analysis
 
-# First Forays and Data Explorations
+There seem to be two stages of tasks set forth here: the first, to do some data visualization of a multi-dimensional data set, and the second, to determine which of the analytes show strong seasonal variability. Before diving into the seasonality analysis, I first tackled the data visualization of the observations by analyte and station. 
 
-Before creating the final products, I've done some preparation and basic exploration, generally scoping out the data set, and preparing it for downstream analysis. 
+##  First Forays and Data Explorations
 
+Reading in the data, loading relevant libraries:
 ```{r, setup, include=TRUE, warning=F, message=F}
 rm(list=ls()) # Clear working environment
 
@@ -35,87 +37,52 @@ library("MapSuite") #Self-written library, has many common libs as dependencies
 library("hexbin") # For the hex-bin plots
 
 # Read in surface water observations as data.table sw
-  #setwd("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/code/")
-  sw<-fread("Dataset_C.csv")
+#setwd("/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/code/")
+sw<-fread("Dataset_C.csv")
+```
 
+Next, I calculate various columns describing the date of observations that may be useful later on.
+```{r, include=TRUE, warning=F, message=F}
 # Parse out date information from character date column
   sw[,index:=seq(1:nrow(sw))]
   sw[,Month:=as.numeric(strsplit(SampleDate,"/")[[1]][1]),by=index] 
   sw[,Day:=as.numeric(strsplit(SampleDate,"/")[[1]][2]),by=index]
   sw[,Year:=as.numeric(strsplit(SampleDate,"/")[[1]][3]),by=index]
-  sw[,Date:=as.IDate(paste0((2000+Year),"-",Month,"-",Day))] # Create formal column of integer-date
-
-# For each analyte, discover the minimum date, and generate a month index from that date:
+# Create formal column of integer-date
+  sw[,Date:=as.IDate(paste0((2000+Year),"-",Month,"-",Day))] 
+# For each analyte, discover the minimum date; generate a yr/month index from that date:
   sw[,year_index:=Year-min(Year,na.rm=T),by=StandardAnalyte]
-  sw[,year_min:=min(Year,na.rm=T),by=StandardAnalyte] # First sample year, calculated by each analyte
-  sw[,month_index:=12*(Year-year_min) + Month] # Number of months from the start of the samples
-
-# Add variables on mean concentration for each analyte by site and globally/for all samples
-  sw[,mean_concentration_analyte_station:=mean(StandardResult,na.rm=T),by=list(StationName,StandardAnalyte)]
-  sw[,mean_concentration_analyte:=mean(StandardResult,na.rm=T),by=StandardAnalyte]
+# Number of months from the start of the samples
+  sw[,month_index:=12*(Year-min(Year,na.rm=T)) + Month] 
 ```
 
-## Assign seasons to different months
-
-In order to symbolize by season, you first need to define what data points are in each season. For now, I'm lumping observations into seasons by month. You could do this a fancier way if you wanted, based on cut points of the equinoxes; for now, we'll just go with month-by-month approximations. I'm also assuming that this is in the Northern hemisphere...
-
+In order to symbolize by season, I am lumping observations into seasons by month. It's certainly possible to do this a more sophisticated way, based on cut points of the equinoxes; for now, however, month-by-month approximations seem adequate.
 
 ```{r, warning=F, message=F}
 sw[Month %in% c(12,1,2), Season:='Winter']
 sw[Month %in% c(3,4,5), Season:='Spring']
 sw[Month %in% c(6,7,8), Season:='Summer']
 sw[Month %in% c(9,10,11), Season:='Fall']
-sw[,Month_String:=month.abb[Month]]
-sw[,log_obs:=log(StandardResult)] # Just in case a log-transform would be more informative, although NaNs will exist where the observation is negative
-sw[,Season:=factor(Season, levels = c("Winter","Spring","Summer","Fall"))] # Defining Season as a factor variable
+# Defining Season as a factor variable
+sw[,Season:=factor(Season, levels = c("Winter","Spring","Summer","Fall"))] 
 ```
 
-## Exploring a single analyte as a test case
+Also, I calculate the mean concentration of each analyte, as well as a log-transformed version of the observations, for convenience later on. 
 
-### Plotting Temperature over the full time series
+```{r, include=TRUE, warning=F, message=F}
+# Add variables on mean concentration for each 
+#analyte by site and globally/for all samples
+sw[,mean_conc:=mean(StandardResult,na.rm=T),
+     by=list(StationName,StandardAnalyte)]
 
-```{r}
-a<-"Temperature" #Picking this one since I have the best sense of what it "should" or "could" be per season
-
-# Make a subset data set with only the analyte you are interested in
-analyte<-sw[StandardAnalyte==a]
-mean_observation<-mean(analyte$StandardResult)
-
-# Plotting using the HexBin Frequency graphics, where the number of stations with an observation in that category is essentially heat-mapped
-
-ggplot(analyte, aes(x=Date, y=StandardResult)) + 
-  geom_hex() + 
-  xlab("Observations Over Time, All Stations") + 
-  scale_x_date(labels = function(x) format(x, "%b-%y")) + 
-  ylab(analyte$StandardUnit[1]) + 
-  ggtitle(paste0(a)) + theme_bw() + 
-  scale_fill_gradientn(colors=wpal("berries")) +
-  guides(fill=guide_colourbar(title="N Stations", title.position="top", barheight=10, barwidth=1,
-                              label=TRUE, ticks=FALSE, direction="vertical")) 
+# Just in case a log-transform would be more informative, 
+# although NaNs will exist where the observation is negative
+sw[,log_obs:=log(StandardResult)] 
 ```
 
-Let's try pooling observations across stations and also years, to get a rough sense of seasonality from a graphical persepective: 
+## Plotting Each Analyte by Station, Over Time
 
-```{r}
-# Plotting by Month, for all years, all stations 
-months_in_order<-c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-
-# Non-Transformed
-ggplot(analyte, aes(x= Month, y=log_obs)) + geom_hex() + 
-  xlab("Observations in Each Month, All Years, All Stations") + 
-  scale_x_continuous(limits=c(1,12),breaks=seq(1,12), labels=months_in_order) +
-  ylab(analyte$StandardUnit[1]) + 
-  ggtitle(paste0(a)) + theme_bw() + 
-  scale_fill_gradientn(colors=wpal("berries")) +
-  guides(fill=guide_colourbar(title="N Stations", title.position="top", barheight=10, barwidth=1,
-                              label=TRUE, ticks=FALSE, direction="vertical")) 
-```
-
-Looks like there's a trend there to the casual eye, but interesting to note that there are no observations during the winter months whatsoever. 
-
-### Plotting a full time series for one station, one analyte
-
-As part of the exercise, I need to generate a "time series by station and analyte". Before looping over each station-analyte combination, I need to create a template graphic that I'm happy with. Below is code to graph a subset of the data (one station's measurements for a specific analyte), with the data symbolized by season (in this case, using color to clarify which season the data point was taken in). 
+In order to make plotting by each station and analyte straightforward, I have written a function that takes a station name, and analyte name as input, and returns a plot of the points, color-coded by season, with a black line representing the mean of the analyte at that station across the full time period. 
 
 ```{r}
 # Define a color pallette for the factor variable, Season
@@ -132,56 +99,77 @@ names(SeasonColors) <- c("Winter","Spring","Summer","Fall")
       ylab(sw[StandardAnalyte==a & StationName==s]$StandardUnit[1]) + 
       ggtitle(paste0(a), subtitle=paste0("Station ",s)) + theme_bw()  + 
       scale_colour_manual(name = "Seasons",values = SeasonColors, drop=F) +
-      geom_hline(yintercept = sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1]) + 
-      annotate("text", min(analyte$Date), 
-               sw[StandardAnalyte==a & StationName==s]$mean_concentration_analyte_station[1], 
+      geom_hline(yintercept = sw[StandardAnalyte==a &
+      StationName==s]$mean_conc[1]) + 
+      annotate("text", min(sw[StandardAnalyte==a & StationName==s]$Date), 
+               sw[StandardAnalyte==a & StationName==s]$mean_conc[1], 
                vjust = -1, label = "Mean")
   
   return(p)  
   }
+```
 
+Before iterating over all of the analytes and stations, and saving them to PDFs, I will test out the plotting function on one analyte, and one station:
+
+```{r}
 # Make and print plot
-  ts<-MakeAnalyteTSPlot(a="Temperature",s="FE-4023") # Arbitrary station chosen
+  ts<-MakeAnalyteTSPlot(a="Temperature",s="FE-4023")
   print(ts)
 ```
 
-OK, good enough to iterate over (not knowing the audience of these graphs, and what level of polish the client/we are looking for internally). We can now make an interactive plot version of this as an R shiny, below: 
+Rather than simply having .PDFs, I sometimes find it useful to create a quick and dirty interactive visualization, with options to select and sub-set data. This won't work in a static file format like .PDF, but you can check out an interactive version of this plot, for each station and analyte, at this URL:  **!!!<include screenshot here>!!!**
 
-```{r, echo = FALSE}
-library(shiny) #Load shiny (an R package for interactive visuaizations)library:
+\newpage
 
-# Initiate a shiny application
-shiny::shinyApp(
-  
-  # Define the User Interface
-    ui = pageWithSidebar(
-      # Application title
-        headerPanel("Time Series for Analyte-Station"),
-    # Sidebar with a selectable input for analytes and stations
-      sidebarPanel(
-         selectInput("analyte", "Analyte:", 
-                    choices = unique(sw$StandardAnalyte)),
-          selectInput("station", "Station:", 
-                    choices = unique(sw$StationName))
-      ),
-    # Show the time series GGplot in the main panel
-      mainPanel(
-        plotOutput("Analyte_Station_TimeSeries")
-      )
-    ),
+# Quantifying Seasonality
 
-  # Define the server/output
-  server = function(input, output) {
-    # Define the Analyte_Station_TimeSeries output  as the TS plot in fn above  
-      output$Analyte_Station_TimeSeries <- renderPlot({
-        ts<-MakeAnalyteTSPlot(a=input$analyte,s=input$station) # Get inputs from UI, use function
-        print(ts)
-      })
-  },
-  options = list(height = 500) # Define how big this visualization GUI is
-)
+The fundamental question here seems to be, "to what extent is the variability in the data due to seasonal effects, rather than annual or other differences"? Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or the influence of other unknown factors.  
+
+Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation. 
+
+Given the data constraints, a few different strategies came to mind. As a test case for each of them, I used temperature, since the right strategy would presumably show a seasonal effect for this analyte, and I had a sense of what probably "should" be happening (it presumably will get warmer in the summer months)!
+
+As a first pass, I made a frequency plot that showed the observed values across the entire time period, for all stations. 
+
+```{r, fig.asp=.5}
+a<-"Temperature"
+
+# Plotting using the HexBin Frequency graphics, where the number of 
+#stations with an observation in that category is essentially heat-mapped
+ggplot(sw[StandardAnalyte==a], aes(x=Date, y=StandardResult)) + 
+  geom_hex() + # honeycomb-plot geometry
+  scale_x_date(labels = function(x) format(x, "%b-%y")) + xlab("Time") +
+  ylab(sw[StandardAnalyte==a]$StandardUnit[1]) + 
+  ggtitle(paste0(a), 
+          (subtitle="Observations Over Full Time Series, All Stations")) + 
+  theme_bw() + scale_fill_gradientn(colors=wpal("berries")) +
+  guides(fill=guide_colourbar(title="N Stations", 
+                              title.position="top", barheight=10, barwidth=1,
+                              label=TRUE, ticks=FALSE, direction="vertical")) 
 ```
-We can also save these as PDFs (although that's not nearly as fun). 
+
+Let's try pooling observations across stations and also years, to get a rough sense of seasonality from a graphical persepective: 
+
+```{r,fig.asp=.5}
+# Plotting by Month, for all years, all stations 
+months_in_order<-c("Jan","Feb","Mar","Apr",
+                   "May","Jun","Jul","Aug",
+                   "Sep","Oct","Nov","Dec")
+
+# Non-Transformed
+ggplot(sw[StandardAnalyte==a], aes(x= Month, y=log_obs)) + geom_hex() + 
+  ggtitle(paste0(a), 
+          subtitle="Observations in Each Month, All Years, All Stations") + 
+  scale_x_continuous(limits=c(1,12),breaks=seq(1,12), labels=months_in_order) +
+  ylab(sw[StandardAnalyte==a]$StandardUnit[1]) + theme_bw() + 
+    scale_fill_gradientn(colors=wpal("berries")) +
+  guides(fill=guide_colourbar(title="N Stations", title.position="top", 
+                              barheight=10, barwidth=1, direction="vertical",
+                              label=TRUE, ticks=FALSE)) 
+```
+
+Looks like there's a trend there to the casual eye, but interesting to note that there are no observations during the winter months whatsoever. 
+
 
 ## Generate PDF of results for each Analyte
 
@@ -202,14 +190,6 @@ for ( a in unique(sw$StandardAnalyte)){
 }
 ```
 
-
-# Quantifying Seasonality
-
-The fundamental question here seems to be, "to what extent is the variability in the data due to seasonal effects, rather than annual differences"? Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or the influence of an unknown covariate!  
-
-Given the data constraints, a few different strategies came to mind. As a test case, I used Temperature, since the right strategy would presumably show a seasonal effect for this analyte, and I had a sense of what probably "should" be happening (it presumably will get warmer in the summer months!).
-
-Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation. 
 
 ## Use Linear Regression Model Coefficients to quantify seasonal component, by season
 
@@ -276,6 +256,7 @@ summary(mod)
 plot(log_obs~month_index,data=analyte)
 plot(analyte$month_index,mod$fitted.values)
 ```
+
 ## Linear Model with 
 
 ```{r}
@@ -287,5 +268,45 @@ lines(mod$fitted.values,analyte$month_index,col=2)
 
 analyte[,fitted:=mod$fitted.values]
 ```
+
+
+
+
+
+```{r, echo = FALSE}
+library(shiny) #Load shiny (an R package for interactive visuaizations)library:
+
+# Initiate a shiny application
+shiny::shinyApp(
+  
+  # Define the User Interface
+    ui = pageWithSidebar(
+      # Application title
+        headerPanel("Time Series for Analyte-Station"),
+    # Sidebar with a selectable input for analytes and stations
+      sidebarPanel(
+         selectInput("analyte", "Analyte:", 
+                    choices = unique(sw$StandardAnalyte)),
+          selectInput("station", "Station:", 
+                    choices = unique(sw$StationName))
+      ),
+    # Show the time series GGplot in the main panel
+      mainPanel(
+        plotOutput("Analyte_Station_TimeSeries")
+      )
+    ),
+
+  # Define the server/output
+  server = function(input, output) {
+    # Define the Analyte_Station_TimeSeries output  as the TS plot in fn above  
+      output$Analyte_Station_TimeSeries <- renderPlot({
+        ts<-MakeAnalyteTSPlot(a=input$analyte,s=input$station) # Get inputs from UI, use function
+        print(ts)
+      })
+  },
+  options = list(height = 500) # Define how big this visualization GUI is
+)
+```
+
 
 
