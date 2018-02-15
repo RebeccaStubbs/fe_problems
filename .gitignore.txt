@@ -3,3 +3,10 @@
 *.RDS
 *.csv
 *.xlsx
+*.XLSX
+*.prj
+*.shp
+*.dbf
+*.TIF
+*.shx
+*.LOG
