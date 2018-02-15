@@ -10,3 +10,5 @@
 *.TIF
 *.shx
 *.LOG
+*.Rhistory
+*.Rapp.history
