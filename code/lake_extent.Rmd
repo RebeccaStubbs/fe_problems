@@ -1,69 +1,148 @@
 ---
 title: "Water Body Extent Thought Experiment"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
-LANDSAT 8: 30m Resolution
+# Prompt
 
-https://landsat.usgs.gov/qualityband
-https://gis.stackexchange.com/questions/251083/processing-landsat-8-data-in-r-using-packages-raster-rstoolbox-etc-in-order
+Describe how you would find and track the extent of a water body within a 1 year period. Explain the data, method, and platform you would use. 
 
+## Answer
 
-RStoolbox: http://bleutner.github.io/RStoolbox/rstbx-docu/classifyQA.html
+There are undoubtedly many ways to solve this problem-- but to keep things tractable, I've focused on a solution that would hopefully minimize both the effort and budget required. I would most likely use remote sensing to find and monitor a water body extent. This strategy would work best for a larger water body in an area with infrequent cloud-cover. 
 
+Landsat-8 looks is a good candidate for a data source-- it has a 30m resolution, takes images every 16 days, and is also freely available. The scenes can be downloaded via Amazon Web Services with reasonable efficiency. Landsat is particularly attractive as a data source due to the presence of a corresponding data product for each scene-- the quality assessment band-- that has bit-encoded information about whether each pixel is clear, cloud-covered, cloud-shadowed, terrain occluded, snow, or water.
 
-http://bleutner.github.io/RStoolbox/rstbx-docu/classifyQA.html
+### Step 1: Where is the Water in the Scene? 
 
+The first step is determining which pixels are water in the downloaded scenes. There are a few options, escalating in sophistication, to determine where water is within the imaged scene we are interested in:
 
-https://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XLII-4-W4/185/2017/isprs-archives-XLII-4-W4-185-2017.pdf
+*  Use the quality assessment band provided by Landsat. It seems that the classification algorithm that is used to generate these layers can work better for some areas than others-- however, it could serve as a first pass solution. There is a free [ArcGIS toolbox](https://github.com/USGS-EROS/landsat-qa-arcgis-toolbox) that can be used to extract this information, and a function in an R package (RStools::classifyQA) that could accomplish this task as well. 
 
-Crappy resolution?
+* Calculate an index, such as the NDWI (Normalized Difference Water Index) using the spectral image bands to determine water presence/absence for each pixel, and use a threshold or cutoff point to determine pixels that are likely to be water. 
 
-Lake extent using pressure gauges 
+* Use a combination of different methods, including masks and classification algorithms, as proposed in this paper from 2016: [An effective modified water extraction method for Landsat-8 OLI imagery of mountainous plateau regions](http://iopscience.iop.org/article/10.1088/1755-1315/34/1/012010/pdf). A method like this one (requiring multiple indices and algorithms to be applied) could be the most accurate, but also might be the most time-consuming and would require the most up-front effort. 
+
+After determining the best method, I would build a pipeline to apply the algorithm or process for each set of images. To monitor within a 1 year period could mean many different temporal resolutions:
+
+* If year-to-year changes are the focus of the study, finding clear images representative of each year taken in the same calendar month might suffice; if seasonality (but not a finer resolution) is important, it could be possible to pick the most cloudless images taken within each season.
+
+* If a finer resolution of measurement in time is required, the course of action would most likely be to process all images taken by Landsat 8 in the time period of interest, and then exclude cloud-covered pixels to generate a time series with missing observations due to cloud cover.
+
+For areas that freeze during the winter, or become covered in snow and ice, a different classification method might be appropriate for images in which the water body has changed state, or is covered by snow-pack.
+
+### Step 2: Focusing on the area of interest
+
+The rough extent of many water bodies can be defined using freely-available hydrography vector layers. After finding the geometry (for example, a shapefile from a county's GIS website) for the water body of interest, its polygon shape (buffered to include peripheral terrain) could serve as a template to clip the raster images to an area of focus.   
+If an index, such as NDWI, is being calculated, or the quality assessment pixel layer is being used, cropping the raster images early in the data processing pipeline would save processing time and space for resulting saved files. However, if you are using an image classification algorithm, it might be worth waiting on this step, depending on how much the surrounding terrain influences the designation for each pixel. 
+
+### Step 3: Compare algorithm outputs for each time period to track changes in extent
+
+Once a raster layer of binary 'water' and 'not-water' pixels for each time period of interest has been generated, there are a variety of ways the extent of the water body could be monitored: 
+
+* Generating polygon or line vector information on the boundary between land and water- using each pixel centroid as a vertex, you could create the vector-version of the water body's boundaries for each time period.
+
+* Track, for each pixel, what times during the year each area was classified as "water" or "not water". This could get even more sophisticated if a classification process was run to recognize "damp soil", which is information that can potentially be gleaned from short-wave infared bands.
+
+In terms of platform, I could foresee myself using either R or ArcGIS for this task-- it depends on the extent of automation I am looking for. I would prefer to code in R if a high level of automation makes sense (for example, if many months worth of imagery data needed to be processed), but ArcGIS also has a wonderful suite of point-and-click tools that might get the job done quickly if I were only processing a handful of images. 
+
+### A few other ideas I had during this thought experiment that seemed worth mentioning:
+
+* It looks like the USGS is on the brink of generating a data product using Landsat-8 called ["Dynamic Surface Water Extent"](https://remotesensing.usgs.gov/ecv/SWE_overview.php), which could neatly solve this problem (however, since it doesn't exist yet, there's no way to know) 
+
+* For a water body that is very small, that needs to be measured at very specific times, or that is covered in clouds most of the time, commercial or UAV imagery might be worth considering. Project budget would undoubtedly be a factor before considering the purchase of imagery or data products.
+
+* As a sanity-check for how well this method is working, I would consider overlaying the water boundary layers generated from this analysis with images from a publicly-available, very high resolution source (like Google Maps). It is possible to determine when images on Google Earth were taken, and the closest, cloud-free corresponding Landsat image time (and the resulting water/no-water layer) could be used for a comparison.
+
+* For many repeated measurements over the course of a year, using radar, rather than the visual spectrum, might be a good choice; some researchers out of Canada have developed [methods](http://www.mdpi.com/2072-4292/8/4/285/pdf) of water classification in advance of the launch of Canada's Radarsat constellation (supposedly flying sometime in 2018).
+
+* Depending on available time, resources, and how often the process is needed, another strategy could be to import the image into a platform like ArcGIS, and have a human trace images, building a vector data set representing the water body extent-- after all, the human mind is an awesome classification tool.
+
+* In conjunction with the right (high-resolution, timely) bathymetry data, a water gauge of some kind could measure water volume for a year. After taking 1 set of lake boundaries (using a classification method above, for instance) where the lake was at a certain depth could potentially be used to extrapolate where the water line would be at different water levels. This solution might work for lakes that become ice-covered, but still are subject to changes in water level beneath the frozen surface.
+
+## Playing around with a test case
+
+Out of curiosity, I tried out out the NDWI method for water classification for an area in the mountains just outside Boulder, CO, focusing on an area to the east of Rocky Mountain National Park-- Lake Granby.
+
+First, I found a relevant scene using using https://earthexplorer.usgs.gov/, and then found the place on amazon web services where the scenes for this area were stored: https://landsatonaws.com/L8/034/032. I chose a scene from August of 2017, due to its low cloud-cover content (only 9%).
+
+\pagebreak
+
+```{r, message=F,warning=F, fig.size=3}
+library(raster)
+library(MapSuite) # My package, has some functions to turn a raster into a data.table
+rm(list=ls()) 
+
+# For the NDWI, we actually only care about the green and nir band, 
+# which are B3 and B5, respectively, but to get a sense of the scene, we can load in red,
+# and blue as well.
+
+img_prefix<-paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/",
+                   "fe_problems/data/landsat_8/",
+                   "LC08_L1TP_034032_20170827_20170914_01_T1/", 
+                   "LC08_L1TP_034032_20170827_20170914_01_T1_") 
+
+# Load in bands
+  red<-raster::raster(paste0(img_prefix,"B4",".TIF"))
+  green<-raster::raster(paste0(img_prefix,"B3",".TIF"))
+  blue<-raster::raster(paste0(img_prefix,"B2",".TIF"))
+  nir<-raster::raster(paste0(img_prefix,"B5",".TIF"))
+
+# Make a raster-brick, crop to roughly the Grandby area
+granby_visual_spectrum<-crop(brick(red,green,blue),
+                             extent(419996, 437500, 4441045, 4456990))
+
+# Plot April 2017 Scene
+plotRGB(granby_visual_spectrum)
+```
+
+This scene contains some cloud cover, but is fairly clear overall where we need it to be (over Lake Granby). Let's see how the NDWI, by McFeeters 1996, as seen here on the [USGS](https://deltas.usgs.gov/fm/data/data_ndwi.aspx) website does-- positive values indicate surface water for this index. [A paper published in 2015](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4507615/#sec2-sensors-15-13763title) has a variety of different calculation methods. 
+
+####  Calculating the NDWI index based on the Green and NIR bands
 
 ```{r}
-# use rLandsat8 package
-
+ndwi<-((green-nir)/(green+nir)) # McFeeters NDWI, 1996; positive values=Water
+# Let's zoom in to the area around Lake Granby:
+granby_ndwi<-crop(ndwi,extent(419996, 437500, 4441045, 4456990))
 ```
-## Describe how you would find and track the extent of a waterbody within a 1 year period.  Explain the data, method, and platform you would use.
 
-It depends on a number of considerations! A few of them are detailed below. To limit this thought experiment, I'm going to assume that this water body is within the continental United States. 
+There is a handy function in my R package that converts from a raster object to a data.table with x/y coordinates of the points, which should make mapping this on a more sensible scale (for example, with all values above 0 being blue), more straightforward:
 
-### Data Source 
+```{r, warning=F, message=F, error=F, fig.asp=1, fig.width=5}
+raster_table<-MapSuite::PixelsToTables(rast=granby_ndwi,var_name='ndwi')
+MapSuite::RasterMap(raster_table,id="id",xcol="x",ycol="y",variable="ndwi",
+                    map_colors=rev(wpal("diverging_orange_purple_blue")),
+                    map_diverging_centervalue = 0,
+                    map_title = "Normalized Difference Water Index",
+                    map_subtitle = "Lake Granby Area, CO")
+```
 
-#### Are you looking forward, or backward in time? 
+\newpage
 
-If you are interested in how the water extent changed from last year until this year, or between 2 years back in time, you are far more constrained in terms of what data are available (at least, until time travel is invented). Unless FE has collected proprietary images of the area, you are stuck with what you can find, or buy. Generally, since public information is at a lower resolution, the next question is..
+Shown another way, here is the surface water detected by this method, this time classified as "water" or "not water", with the polygon boundary of Lake Granby (as procured via [Grand County's Digital Data Sets Portal](http://co.grand.co.us/170/Digital-Data-Sets)) overlain in red.
 
-#### How small is your water body, and how precise do you need your estimate?
+```{r,  warning=F, message=F, error=F, fig.asp=1}
+# Let's create a binary, with 0 as non-water, and 1 as water:
+raster_table[,factor_water:=ifelse(ndwi>=0,"Surface Water","Not Water")]
 
-https://www.digitalglobe.com/products/swir-imagery
+# Load in lakes of Grand County, select Lake Granby from SPDF
+  gcl<-MapSuite::ShptoSPDF(shp_dir=paste0("/Users/stubbsrw/Documents/git_code/",
+                                          "stubbs_repo/fe_problems/data/LAKES/"),
+                                          shp_layer="lakes" , id_field="Acres")
+# Select Lake Granby
+  granby <- gcl[gcl@data$polygon_order==142,]
+# Re-project to same info as raster
+  granby <- spTransform(granby, CRS(proj4string(granby_ndwi))) 
 
-If you are measuring a thin stream, or a smaller water feature, 1km resolution imagery will probably be useless. However, for a water body is many square miles across, 
+# Make map with red Granby outline
+MapSuite::RasterMap(raster_table,id="id",xcol="x",ycol="y",variable="factor_water",
+                    map_colors=rev(wpal("diverging_orange_purple_blue")),
+                    map_diverging_centervalue = 0, 
+                    map_title = "Water Classification achieved through NDWI", 
+                    map_subtitle = "Lake Granby Area, CO", 
+                    outline = granby, outline_color="red")
+```
 
-
-https://www.researchgate.net/post/How_to_extract_Water_bodies_from_Landsat_8_data
-
-
-Up and coming data set: Canada's RADAR constellation
-http://www.asc-csa.gc.ca/eng/satellites/radarsat/Default.asp
-
-https://earthengine.google.com/datasets/
-
-If in the past:
-  MODIS: 500m  up to 2013
-  https://lpdaac.usgs.gov/dataset_discovery/modis/modis_products_table/mcd12q1
-
-
-
-The data source used 
-
-Budget:
-One option would be to contract a remote sensing company, such as Ursa Space Systems, to periodically collect data (in this case, Synthetic Aperture Radar)  http://ursaspace.com/custom-monitoring-services/ at a desired cadence.
-
-
-
-In what other ways can you double-dip the data sets you are using or processing? 
-
-
-Size of the water body/desired 
+Not bad for a first stab! It would probably depend on the water body as to whether this method would be considered a "success" or not. At this point, comparing pixels within the lake's polygon boundary (or a buffered distance around the lake's polygon boundary) for scenes spanning a year would describe waterbody extent changes over time. 
