@@ -1,6 +1,7 @@
 ---
 title: "Water Body Extent Thought Experiment"
 author: "Rebecca Stubbs"
+date: "February 16, 2018"
 output:
   pdf_document: default
 ---
@@ -88,7 +89,7 @@ library(MapSuite) # My package, has some functions to turn a raster into a data.
 # and blue as well.
 
 img_prefix<-paste0("/Users/stubbsrw/Documents/git_code/stubbs_repo/",
-                   "fe_problems/water_body_extent/landsat_8/",
+                   "fe_problems/01_water_body_extent/landsat_8/",
                    "LC08_L1TP_034032_20170827_20170914_01_T1/", 
                    "LC08_L1TP_034032_20170827_20170914_01_T1_") 
 
@@ -140,7 +141,7 @@ raster_table[,factor_water:=ifelse(ndwi>=0,"Surface Water","Not Water")]
 
 # Load in lakes of Grand County, select Lake Granby from SPDF
 gcl<-MapSuite::ShptoSPDF(shp_dir=paste0("/Users/stubbsrw/Documents/git_code/",
-                         "stubbs_repo/fe_problems/water_body_extent/grand_county_lakes/"),
+                         "stubbs_repo/fe_problems/01_water_body_extent/grand_county_lakes/"),
                           shp_layer="lakes" , id_field="Acres")
 # Select Lake Granby
   granby <- gcl[gcl@data$polygon_order==142,]

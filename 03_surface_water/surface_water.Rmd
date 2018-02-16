@@ -1,7 +1,7 @@
 ---
 title: "Surface Water Analyte Seasonality Analysis"
 author: "Rebecca Stubbs"
-date: "February 15, 2018"
+date: "February 16, 2018"
 output:
   pdf_document: default
   html_document: default
@@ -64,7 +64,7 @@ Next, I calculate various columns describing the date of observations that may b
     sw[,Date:=as.IDate(paste0((2000+Year),"-",Month,"-",Day))] 
 ```
 
-In order to symbolize by season, I am lumping observations into seasons by month. It's certainly possible to do this a more sophisticated way, based on cut points of the equinoxes; for now, however, month-by-month approximations seem adequate. December, January and February were assigned winter; March, April, and May were assigned spring; June, July, and August were assigned summer, and September, October, and Novermber were assigned fall.
+In order to symbolize by season, I am lumping observations into seasons by month. It's certainly possible to do this a more sophisticated way, based on cut points of the equinoxes; for now, however, month-by-month approximations seem adequate. December, January and February were assigned winter; March, April, and May were assigned spring; June, July, and August were assigned summer, and September, October, and November were assigned fall.
 
 ```{r, warning=F, message=F}
   sw[Month %in% c(12,1,2), Season:='Winter']
@@ -138,16 +138,16 @@ Each plot can now be written to a .pdf for each analyte, by station.
 
 Rather than simply having .PDFs, I sometimes find it useful to create a quick and dirty interactive visualization, with options to select and sub-set data. This won't work in a static file format like .PDF, but you can check out an interactive version of this plot, and some of the plots below,for each station and analyte, at this URL: **[https://rebeccastubbs.shinyapps.io/surface_water_app/](https://rebeccastubbs.shinyapps.io/surface_water_app/)**
 
-![Screen-Capture of Interactive Tool Available Online, at https://rebeccastubbs.shinyapps.io/surface_water_app/](/Users/stubbsrw/Documents/git_code/stubbs_repo/fe_problems/surface_water/intearactive_screencap.png)
+![Screen-Capture of Interactive Tool Available Online, at https://rebeccastubbs.shinyapps.io/surface_water_app/](intearactive_screencap.png)
 
 \newpage
 # Quantifying Seasonality
 
-The fundamental question here seems to be, "to what extent is the variability in the data due to seasonal effects, rather than annual or other differences?" Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, or the effect of a recent event, or the influence of other unknown factors.  
+The fundamental question here seems to be, "To what extent is the variability in the data due to seasonal effects, rather than annual or other differences?" Unfortunately, there aren't very many data points per station within this data set, and the time period of observation only lasts a few years' time. This makes disentangling variation in observations for each site difficult--the change in observed data could be due to measurement error, a product of seasonal variation, inter-annual variation, random noise, the effect of a recent event, or the influence of other unknown factors.  
 
 Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation.
 
-Rather than experimenting on a chemical analyte with which I am less familiar, I show examples below of the process first undertaken with temperature, a measured (but not chemically analyzed) feature of the data set. Looking at the results of this analysis for temperature also might give me a sense for how strong the seasonal effect might be-- if this area experiences strong temperature swings in each season for surface water, with little variation in observed temperature from year to year.
+Rather than experimenting on a chemical analyte with which I am less familiar, I show examples below of the process first undertaken with temperature, a measured (but not chemically analyzed) feature of the data set. Looking at the results of this analysis for temperature also might give me a sense for how strong the seasonal effect might be, since temmperature is dependent on time of year, but to greater and lesser extents depending on the location of interest.
 
 As a first pass, I made a frequency plot that showed the observed values across the entire time period, for all stations. 
 
@@ -197,7 +197,7 @@ Pooling observations across stations and also years could give a better perspect
 ```
 There are some interesting results here-- it appears that the temperature data is relatively noisy across the different sites, and that even within the same month, there is a large degree of variation in observed surface temperatures. 
 
-It looks like there is a trend there to the casual eye, but it is interesting to note that there are very, very few observations during the winter months for this analyte. Now that the architechture to  generate these plots has been vetted, I put versions of these plots for each analyte as part of the interactive data visualization tool rather than generating a booklet of PDFs. **[https://rebeccastubbs.shinyapps.io/surface_water_app/](https://rebeccastubbs.shinyapps.io/surface_water_app/)**.
+It looks like there is a trend there to the casual eye, but it is interesting to note that there are very, very few observations during the winter months for this analyte. Now that the architecture to  generate these plots has been vetted, I put versions of these plots for each analyte as part of the interactive data visualization tool rather than generating a booklet of PDFs. **[https://rebeccastubbs.shinyapps.io/surface_water_app/](https://rebeccastubbs.shinyapps.io/surface_water_app/)**.
 
 \newpage
 
@@ -205,7 +205,7 @@ It looks like there is a trend there to the casual eye, but it is interesting to
 
 To determine the impact of seasonality on the measurements separate from the influence of variation across years, I fit a mixed-effects model[^1] with parameters for an intercept (representing the expected/mean observed value) with respect to all of the data, and deviations from that intercept (modeled as random effects) for each year and season. This kind of model fits intercept shifts for each sub-group (such as season) of the data, based on the idea that each season's deviation from the global/data-wide mean is pulled from a mean 0, normal distribution, with the standard deviation representing the season's variance away from that global mean as a modeled parameter. From a theory standpoint, this model expresses that the differences seen in the observations due to seasons are the product of a stochastic process we have not observed, and that by default, these subgroups are likely to be deviations from an overall pattern (the 'global' intercept)-- without evidence from the data collected, the model's "assumption" is that a given subgroup is no different than the mean.
 
-The task at hand is to determine which analytes have "the **most** seasonal variability"-- however, the analytes are all in different units! To be able to compare model parameters from one analyte to another, I converted all of the observed values to z-scores, rescaling the data such that each recorded observation is represented as deviations away from the mean.
+The task at hand is to determine which analytes have "the **most** seasonal variability"-- however, the analytes are all in different units! To be able to compare model parameters from one analyte to another, I converted all of the observed values to z-scores, re-scaling the data such that each recorded observation is represented as deviations away from the mean.
 
 By extension, the random effect values returned from the model for each season represent the amount each season's expected value is different from the global mean, in units of sigma for that specific analyte or measured quantity.
 
@@ -218,7 +218,7 @@ First, I calculate the "z-score" transformed version of the measured observation
 
 [^1]: Note that this modeling technique is called something different by almost every discipline...Wikipedia informs me that these models are also called multilevel models, hierarchical linear models, nested data models, random coefficient, random-effects models, random parameter models, or split-plot designs. 
 
-Next, I fit the model (tested on Temperature) using the lme4 package, with z-score as the dependent variable, and a random intercept on year and sesason.
+Next, I fit the model (tested on Temperature) using the lme4 package, with z-score as the dependent variable, and a random intercept on year and season.
 
 ```{r, message=F,error=F}
   analyte<-sw[StandardAnalyte=="Temperature"]
@@ -236,11 +236,11 @@ season_re<-data.table(Analyte="Temperature",
 setnames(season_re,"(Intercept)","Intercept_shift")
 pander(season_re)
 ```
-This can be interpreted to mean that observations taken in the fall are estimated to be .49 standard deviations higher than the average across the whole time period, regardless of the year of observation, and random noise. Adding together the absoloute value of these estimated parameters gives one concise number that describes the magnitude of seasonality for this analyte.
+This can be interpreted to mean that observations taken in the fall are estimated to be .49 standard deviations higher than the average across the whole time period, regardless of the year of observation, and random noise. Adding together the absolute value of these estimated parameters gives one concise number that describes the magnitude of seasonality for this analyte.
 
 \newpage
 
-Now, I underake the same process for each of the analytes. I am excluding the analytes from this analysis for which fewer than 4 seasons were observed.
+Now, I undertake the same process for each of the analytes. I am excluding the analytes from this analysis for which fewer than 4 seasons were observed.
 
 ```{r,error=F,message=F,warning=F}
   season_random_effects<-list() # Emtpy list to hold seasonal RE values
@@ -279,13 +279,14 @@ Having estimated the random effect values for each of the analytes, the sum of t
                         by="Analyte"][order(-Seasonality)]
 ```
 
+\newpage
 ## The results: a rank-ordered table of analyte or measured quantity, by seasonality
 
 ```{r}
 # Make rank-order table
 pander(seasonal_summary, 
-caption=paste0("Rank-ordered magnitude of seasonal effect for each analyte",
-               "represented by the sum of \n the absoloute values ",
+caption=paste0("Rank-ordered magnitude of seasonal effect for each analyte ",
+               "represented by the sum of \n the absolute values ",
                "of each season's contribution to analyte variation,\n ",
                "in units of analyte-specific standard deviation."))
 ```
@@ -294,19 +295,19 @@ To sanity-check this process, let's take a look at the plots of observations in 
 ```{r,warning=F,error=F,message=F, fig.asp=.4}
 plot_by_month("Strontium, dissolved")
 ```
-And, on the other side, an analyte with litle evidence of seasonal variation:
+And, on the other side, an analyte with lite evidence of seasonal variation:
 ```{r,warning=F,error=F,message=F, fig.asp=.4}
 plot_by_month("Oxygen, Dissolved")
 ```
 Based on the above plots, this analysis passes the gut-check for me-- dissolved strontium, the leader in seasonality using this index, seems to have a strong pattern of lower values in the summer months, while dissolved oxygen seems to mostly hover around the same values year round, with noise distributed throughout. 
 
-This analysis has limitations. Although the model fit for most of the analytes, some of the model resulted in 'singular fits', in which the estimated variance for the season and year random effects was 0. [This stats.stacksexchange post](https://stats.stackexchange.com/questions/115090/why-do-i-get-zero-variance-of-a-random-effect-in-my-mixed-model-despite-some-va)[^2] goes into this circumstance in detail-- from the brief investigations I did, it appears this propbably resulted from small numbers of random effect categories, and sparse data with each category. Better estimates of the magnitude of seasonal variation for each analyte could be gleaned from a data set that spanned more seasonal cycles, and had better observations evenly across the full time period. With only 4 observations in the winter months for many of the analytes, and some analytes without observations in all 4 seasons, modeling options like periodic functions and cubic splines seemed sub-optimal, but might have yielded different results in a more complete data set. This analysis does not describe how the variance/standard deviation in analytes might change with the seasons, and is currently limited to a narrow view of what constitutes "seasons"- for any given analyte, it's possible that different groups of months would be more approriate and better represent trends within a year than the months I have chosen. 
+This analysis has limitations. Although the model fit for most of the analytes, some of the model resulted in 'singular fits', in which the estimated variance for the season and year random effects was 0. [This stats.stacksexchange post](https://stats.stackexchange.com/questions/115090/why-do-i-get-zero-variance-of-a-random-effect-in-my-mixed-model-despite-some-va)[^2] goes into this circumstance in detail-- from the brief investigations I did, it appears this probably resulted from small numbers of random effect categories, and sparse data with each category. Better estimates of the magnitude of seasonal variation for each analyte could be gleaned from a data set that spanned more seasonal cycles, and had better observations evenly across the full time period. With only 4 observations in the winter months for many of the analytes, and some analytes without observations in all 4 seasons, modeling options like periodic functions and cubic splines seemed sub-optimal, but might have yielded different results in a more complete data set. This analysis does not describe how the variance/standard deviation in analytes might change with the seasons, and is currently limited to a narrow view of what constitutes "seasons"- for any given analyte, it's possible that different groups of months would be more appropriate and better represent trends within a year than the months I have chosen. 
 
 An initial stab at this model also included the sampling station such that the model would have a random intercept for each station as well-- however, insufficient data for many of the observation sites (on the order of 2-3 observations for the full time period for Temperature, for instance) makes inference about the individual station's expected deviation from the mean dubious, and including them seemed like an excessive number of parameters to fit for this exercise. Knowing that certain sites group together might be one way to improve this-- for instance, if all of the "FE-ET" stations could be considered together, it would likely improve the model's estimate, and would better disentangle variation due to site-specific conditions rather than seasonality or annual differences.
 
 ## Other potential strategies and false starts along the way
 
-To determine how much seasons "matter" for each analyte, I originally compared the observed data with and "without" seasonality, by de-trending the data of its seasonal component. This could be achieved by subtracting the model estimated intercept shifts for each season from the observed data points---functionally feeding the model new data to 'predict' values, in which the new, season-free data belongs to none of the seasonal sub-groups that the model was fit on. Calculating a summary measure, like the mean percent difference between the raw and seasonally-adjusted data, would have provided a measure of how much seasonality impacted the specific measurements taken within this dataset. However, this method would be sensitive to how many data points were observed in each season-- for example, if there was a strong sesasonal effect for the spring, but the data were mostly collected in the summer and fall, with few points in the spring and winter, that analyte would appear to be far less seasonal than an analyte with moderate seasonality, but focused in summer, when much of the data were taken.
+To determine how much seasons "matter" for each analyte, I originally compared the observed data with and "without" seasonality, by de-trending the data of its seasonal component. This could be achieved by subtracting the model estimated intercept shifts for each season from the observed data points---functionally feeding the model new data to 'predict' values, in which the new, season-free data belongs to none of the seasonal sub-groups that the model was fit on. Calculating a summary measure, like the mean percent difference between the raw and seasonally-adjusted data, would have provided a measure of how much seasonality impacted the specific measurements taken within this dataset. However, this method would be sensitive to how many data points were observed in each season-- for example, if there was a strong seasonal effect for the spring, but the data were mostly collected in the summer and fall, with few points in the spring and winter, that analyte would appear to be far less seasonal than an analyte with moderate seasonality, but focused in summer, when much of the data were taken.
 
 I also considered other model types to capture both long-term (annual) and short-term (seasonal) trends. Fitting models including some kind of periodic function, or using cubic splines, seemed initially attractive-- however, without observations in winter for many of the analytes, this did not seem like the right path. 
 
