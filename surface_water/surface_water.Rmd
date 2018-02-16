@@ -1,5 +1,5 @@
 ---
-title: "Surface Water Seasonality Analysis"
+title: "Surface Water Analyte Seasonality Analysis"
 author: "Rebecca Stubbs"
 date: "February 15, 2018"
 output:
@@ -42,14 +42,16 @@ Reading in the data, loading relevant libraries:
   
   rm(list=ls()) # Clear working environment
   
-  library(MapSuite) #Self-written library, has many common libs as dependencies
+  library(MapSuite) #mylibrary, has many common libs as dependencies
   library(hexbin) # For the hex-bin plots
   library(lme4) # Mixed-effects modeling package
   library(pander) # tables for R markdown
   
-  # Running this Markdown from the same dir as the data allows the use of relative file paths
+  # Running this Markdown from the same dir as the data, the using relative file paths
   sw<-fread("Dataset_C.csv")# Read in surface water observations as data.table sw
 ```
+
+\newpage
 
 Next, I calculate various columns describing the date of observations that may be useful later on.
 ```{r, include=TRUE, warning=F, message=F}
@@ -62,7 +64,7 @@ Next, I calculate various columns describing the date of observations that may b
     sw[,Date:=as.IDate(paste0((2000+Year),"-",Month,"-",Day))] 
 ```
 
-In order to symbolize by season, I am lumping observations into seasons by month. It's certainly possible to do this a more sophisticated way, based on cut points of the equinoxes; for now, however, month-by-month approximations seem adequate.
+In order to symbolize by season, I am lumping observations into seasons by month. It's certainly possible to do this a more sophisticated way, based on cut points of the equinoxes; for now, however, month-by-month approximations seem adequate. December, January and February were assigned winter; March, April, and May were assigned spring; June, July, and August were assigned summer, and September, October, and Novermber were assigned fall.
 
 ```{r, warning=F, message=F}
   sw[Month %in% c(12,1,2), Season:='Winter']
@@ -76,6 +78,7 @@ In order to symbolize by season, I am lumping observations into seasons by month
 Having generated the variables needed for the analysis, I can proceed to data visualization. 
 
 \newpage
+
 ## Plotting Each Analyte by Station, Over Time
 
 In order to make plotting by each station and analyte straightforward, I have written a function that takes a station name, and analyte name as input, and returns a plot of the points, color-coded by season, with a black line representing the mean of the analyte at that station across the full time period. 
@@ -144,7 +147,7 @@ The fundamental question here seems to be, "to what extent is the variability in
 
 Without knowing the spatial location of any of the stations, I assumed that the stations would be nearby one another, and subject to (at least roughly) the same weather and insolation patterns--- if these stations were far apart, it would be even more difficult to measure the "seasonal component" of each analyte, since the magnitude of seasonal changes could be subject to variables such as latitude and elevation.
 
-Rather than experimenting on a chemical analyte with which I am less familiar, I show examples below of the process first undertaken with Temperature, a measured (but not chemically analyzed) feature of the data set, and then applied to the chemical analytes. 
+Rather than experimenting on a chemical analyte with which I am less familiar, I show examples below of the process first undertaken with temperature, a measured (but not chemically analyzed) feature of the data set. Looking at the results of this analysis for temperature also might give me a sense for how strong the seasonal effect might be-- if this area experiences strong temperature swings in each season for surface water, with little variation in observed temperature from year to year.
 
 As a first pass, I made a frequency plot that showed the observed values across the entire time period, for all stations. 
 
@@ -166,6 +169,8 @@ As a first pass, I made a frequency plot that showed the observed values across 
   }
   plot_full_ts("Temperature")
 ```
+
+This graph highlights the extent to which surface water temperature varied both from year to year, and for any given month-- this surprises me somewhat, I would have expected to see a clearer trend for something that is directly associated with the seasons. 
 
 \newpage
 
@@ -190,18 +195,19 @@ Pooling observations across stations and also years could give a better perspect
   }
   plot_by_month("Temperature")
 ```
+There are some interesting results here-- it appears that the temperature data is relatively noisy across the different sites, and that even within the same month, there is a large degree of variation in observed surface temperatures. 
 
-It looks like there is a trend there to the casual eye, but it is interesting to note that there are very, very few observations during the winter months for this analyte. Furthemore, in the plot across all time, it appears that the summer months were colder in later years. Versions of these plots can also be found on the same interactive data visualization at the URL **[https://rebeccastubbs.shinyapps.io/surface_water_app/](https://rebeccastubbs.shinyapps.io/surface_water_app/)**.
+It looks like there is a trend there to the casual eye, but it is interesting to note that there are very, very few observations during the winter months for this analyte. Now that the architechture to  generate these plots has been vetted, I put versions of these plots for each analyte as part of the interactive data visualization tool rather than generating a booklet of PDFs. **[https://rebeccastubbs.shinyapps.io/surface_water_app/](https://rebeccastubbs.shinyapps.io/surface_water_app/)**.
 
 \newpage
 
 ## Using a mixed-effects model to tease out seasonality from the data
 
-To determine the impact of seasonality on the measurements separate from the influence of variation across years, I fit a mixed-effects model[^1] with parameters for an intercept with respect to all of the data, and deviations from that intercept (modeled as random effects) for each year and season. This kind of model fits intercept shifts for each sub-group (such as season) of the data, based on the idea that each season's deviation from the global/data-wide mean is pulled from a mean 0, normal distribution, with the standard deviation representing the season's variance away from that global mean as a modeled parameter. Including the season and year variables in the model this way (as sub-classifications of the data set) removes the idea of temporal "trajectory" or sequence, which may not exist, or which may reverse direction mid-way in the time period due to some sort of intervention. Furthermore, from a theory standpoint, this model expresses that the differences seen in the observations due to seasons are the product of a stochastic process we have not observed, and that by default, these subgroups are likely to be deviations from an overall pattern (the 'global' intercept)-- without evidence from the data collected, the model's "assumption" is that a given subgroup is no different than the mean.
+To determine the impact of seasonality on the measurements separate from the influence of variation across years, I fit a mixed-effects model[^1] with parameters for an intercept (representing the expected/mean observed value) with respect to all of the data, and deviations from that intercept (modeled as random effects) for each year and season. This kind of model fits intercept shifts for each sub-group (such as season) of the data, based on the idea that each season's deviation from the global/data-wide mean is pulled from a mean 0, normal distribution, with the standard deviation representing the season's variance away from that global mean as a modeled parameter. From a theory standpoint, this model expresses that the differences seen in the observations due to seasons are the product of a stochastic process we have not observed, and that by default, these subgroups are likely to be deviations from an overall pattern (the 'global' intercept)-- without evidence from the data collected, the model's "assumption" is that a given subgroup is no different than the mean.
 
-The task at hand is to determine which analytes have "the most seasonal variability"-- however, the analytes are all in different units! To be able to compare model parameters from one analyte to another, I converted all of the observed values to z-scores, such that each recorded observation is scaled as deviations away from the mean. 
+The task at hand is to determine which analytes have "the **most** seasonal variability"-- however, the analytes are all in different units! To be able to compare model parameters from one analyte to another, I converted all of the observed values to z-scores, rescaling the data such that each recorded observation is represented as deviations away from the mean.
 
-By extension, the random effect values returned from the model for each season represent the "intercept shift" away from the global mean in units of sigma for that specific analyte or measured quantity. 
+By extension, the random effect values returned from the model for each season represent the amount each season's expected value is different from the global mean, in units of sigma for that specific analyte or measured quantity.
 
 First, I calculate the "z-score" transformed version of the measured observations for each analyte, across all stations and for all observations in time:
 ```{r}
