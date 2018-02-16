@@ -1,5 +1,5 @@
 ---
-title: "Sediments"
+title: "Sediment Core Analysis"
 author: "Rebecca Stubbs"
 date: "February 16, 2018"
 output: pdf_document
@@ -40,7 +40,7 @@ Bonus:  Can you infer anything about the modification history of the site from t
 
 This data represents sediment cores taken along the last ~4 miles of the Duwamish river, in Washington State-- not so far from where I lived for the last few years. There is a *lot* going on here-- between the extended time period of the samples, to core depth, dredging history, and chemical detection, this is a hugely multi-dimensional data set before you even start exploring the X and Y (much less the Z of the bathymetric river depth).
 
-A full and satisfying answer to these questions could be a major undertaking-- to get a complete picture of what's happening in the river bed, at different depths, and over time, it would be helpful to "fill in the gaps" between observations, essentially creating a 3-d mesh of estimated chemical concentrations over time, at which point I could generate thresholds that define different levels of contamination requiring different intervention strategies or indicating historical activity. To accomplish this would most likely involve a complex geostatistical model, in which spatial and temporal autocorrelation, information about previous dredging, river depth, proximity to known or suspected contamination sites, and potentially values from other nearby chemicals, are used to estimate each analyte for any given space, time, and sediment depth. Using polygon layers of previous dredging efforts to provide "dredged or undredged" information for spaces not observed by cores, a mesh of points could have their values "predicted" by this geostatistical model, at which point, the river could be divided based on either individual contaminant values and thresholds, or based on the combinations of total PCBs, PAHs, and arsenic. The extent to which "lags", or observations prior (either upstream, or back in time) helped predict each of the chemicals within the model could potentially indicate the presence of upstream-to-downstream contaminant flow. 
+A full and satisfying answer to these questions could be a major undertaking-- to get a complete picture of what's happening in the river bed, at different depths, and over time, it would be helpful to "fill in the gaps" between observations, essentially creating a 3-d mesh of estimated chemical concentrations over time, at which point I could generate thresholds that define different levels of contamination requiring different intervention strategies or indicating historical activity. To accomplish this would most likely involve a complex geostatistical model, in which spatial and temporal auto-correlation, information about previous dredging, river depth, proximity to known or suspected contamination sites, and potentially values from other nearby chemicals, are used to estimate each analyte for any given space, time, and sediment depth. Using polygon layers of previous dredging efforts to provide "dredged or undredged" information for spaces not observed by cores, a mesh of points could have their values "predicted" by this geostatistical model, at which point, the river could be divided based on either individual contaminant values and thresholds, or based on the combinations of total PCBs, PAHs, and arsenic. The extent to which "lags", or observations prior (either upstream, or back in time) helped predict each of the chemicals within the model could potentially indicate the presence of upstream-to-downstream contaminant flow. 
 
 Regretfully, I don't currently have the time to tackle such an analysis-- furthermore, the "less intense" version of this process (simply interpolating between values across river miles and/or time) is displeasing in a number of ways, and would require a vast array of assumptions that may not accurately represent the processes at work within the Duwamish. Interpolation involves stretching values across a data gap between 2 points, with values stretching in-between. This makes sense for data points for which there are data gaps from an area of high chemical concentrations, to a point downstream with lower chemical concentrations. However, it seems counter-intuitive to interpolate values from a low chemical value upstream to a high chemical value downstream, gradually and monotonically increasing with each river mile.
 
@@ -281,20 +281,21 @@ for(chemical in names(chemlist)){
 ```
 \newpage
 
-Unfortunately, thats all the exploration and analysis I have time for on this question! However, with these graphs, I can start to get a picture of what might have happened here.
+Unfortunately, that is all the exploration and analysis I have time for on this question! However, with these graphs, I can start to get a picture of what might have happened here.
 
 ### PAHs
 
-The contamination from PAHs in the lower Duwamish seems to be charecterized by intermixed pollution throughout both the sediment strata and across time, with observed concentrations becoming higher (in general) downstream. Two miles away from the furthest upstream point (or, river-mile 3 as measured from Puget Sound), concentrations seem to increase, with high measurements both deep in the sediment (into the mid-layer and deep sediments). With fewer deep samples in the upstream portion of the river, this apparent trend may be due to sampling bias. High values were observed in the very first samples taken in the mid-1990s, going down to the mid-layer of the sediments, which indicates that the polluting process likely has occurred for years before the samples were taken. Later measurements in the late 2000s point to improving conditions in the surface layer, but the PAH contamination seems to run deep, especially in the lower reaches of the river as it heads towards the sea. 
-Interpreting the graphs by decade, it appears that variation among observations for each tenth-of-a-river-mile strata seems to be relatively consistent across both river mile and decade. The magnitude of the inter-quartile range also points to the relatively noisy observations seen in the plot by river-mile and year. 
+The contamination from PAHs in the lower Duwamish seems to be characterized by intermixed pollution throughout both the sediment strata and across time, with observed concentrations becoming higher (in general) downstream. Two miles away from the furthest upstream point (or, river-mile 3 as measured from Puget Sound), concentrations seem to increase, with high measurements both deep in the sediment (into the mid-layer and deep sediments). With fewer deep samples in the upstream portion of the river, this apparent trend may be due to sampling bias. High values were observed in the very first samples taken in the mid-1990s, going down to the mid-layer of the sediments, which indicates that the polluting process likely has occurred for years before the samples were taken. Later measurements in the late 2000s point to improving conditions in the surface layer, but the PAH contamination seems to run deep, especially in the lower reaches of the river as it heads towards the sea. Interpreting the graphs by decade, it appears that variation among observations for each tenth-of-a-river-mile strata seems to be relatively consistent across both river mile and decade. The magnitude of the inter-quartile range also points to the relatively noisy observations seen in the plot by river-mile and year. 
 
 ### Arsenic
 
-Unlike PAHs, there seems to be very little variation in arsenic measurements, with specific spikes at river-mile locations-- a trend that is consistent across decade. Two particular river-mile locations--around 1.2 miles and 3.5 miles from tue furthest upstream point (~3.8, and 1.5 miles away from the river mouth, respectively), huge spikes of arsenic are observed. Interestingly, the downstream areas do not seem to show a clear "trailing off", which means that the contamination is highly isolated. The pollution source for the most downstream spike must have been present for quite some time-- extremely high measusrements were found deep in the sediment layers. Another spike just before puget sound is present in near-surface, mid-layer, and deep sediments, but was not found in the surface, which could indicate either recent deposition of non-arsenic sediment (after all, the surface measurements are very small in depth, only capturing the very top layer). 
+Unlike PAHs, there seems to be very little variation in arsenic measurements, with specific spikes at river-mile locations-- a trend that is consistent across decade. At two particular river-mile locations--around 1.2 miles and 3.5 miles from the furthest upstream point, huge spikes of arsenic are observed. Interestingly, the downstream areas do not seem to show a clear "trailing off" from higher values upstream tainting lower portions sequentially, which means that the contamination seems to be relatively isolated. The pollution source for the spike at 3.5 miles must have been present for quite some time-- extremely high measurements were found deep in the sediment layers. Another spike just before puget sound is present in near-surface, mid-layer, and deep sediments, but was not found on the surface of the river bottom, which could indicate either recent deposition of non-arsenic sediment (after all, the surface measurements are very small in depth, only capturing the very top layer). 
 
 ### Total PCBs
 
-Much like arsenic, this contaminant seems to be present in hot-spots along the river's course, rather than widely distributed across the river with noisy measurements like PAHs. Higher values stretch into the sediment's mid-layer at 1.5 miles away from the most upstream measured point (close, but not at the same mile marker as the high arsenic readings, which are slightly upriver). Very high observation in the surface layer around mile 4.5 in the early 1990s, and 2.5 from the furthest upstream point could indicate contamination from specific events. Unlike arsenic and PAHs, total PCBs seem to have heteroskedasticity in their meaurements-- the range of observed values is much wider earlier in the river. This high variance in measurements was present even in the mid-layer and deep sediments-- since this analysis takes only river mile, and not bank of the river into account, it's possible that some areas within the same river-mile have widely differnt contamination levels depending on the closest riverbank. 
+Much like arsenic, this contaminant seems to be present in hot-spots along the river's course, rather than widely distributed across the river with noisy measurements like PAHs. Higher values stretch into the sediment's mid-layer at 1.5 miles away from the most upstream measured point (close, but not at the same mile marker as the high arsenic readings, which are slightly upriver). Very high observations in the surface layer around mile 4.5 in the early 1990s, and 2.5 in the mid-2000s could indicate contamination from specific events. Unlike arsenic and PAHs, total PCBs seem to have heteroskedasticity in their measurements-- the range of observed values is much wider earlier in the river. This high variance in measurements was present even in the mid-layer and deep sediments-- since this analysis takes only river mile, and not bank of the river into account, it's possible that some areas within the same river-mile have widely different contamination levels depending on the closest riverbank. 
+
+\newpage
 
 ## Where could I go from here?
 
@@ -306,67 +307,33 @@ Some potential leads to follow, are as follows:
 
 * Explore the X/Y spatial patterns, such as hot spot detection
 
-* Determine the spatial and temporal lags that charecterize upstream->downstream autocorrelation
+* Determine the spatial and temporal lags that characterize upstream->downstream auto-correlation
 
 Being relatively unfamiliar with this data type, I would almost certainly be checking with the rest of the team as to the best way to proceed. 
 
+\newpage
 ## Addressing the bonus: What can you tell about the modification history of the site?
 
 It looks like this data contains bathymetric data coming from one year (2003) based on the column name, regardless of when the sample was taken, so I don't have any information on how the topography of the river bottom may have changed based on this data set. However, this data contains two piece of information that might indicate modification history-- both a flag for whether or not the data is within a shipping channel, with the potential for regular dredging, and also a column "DredgeYear", which sometimes (often) is later than the actual sample date-- leading me to believe that this column is likely derived from a spatial join to polygon layers describing historical dredge paths. Furthermore, it appears that many of the points with a history of dredging are not within the shipping channel.
 
-Knowing the dredging history doesn't tell me anything about whether sediments or sand were put down to replace the removed material-- to look for areas of disturbance or modification, one strategy would be to choose a handful of important chemical analytes within the sediment samples that indidcate sediment type, and then look to see whether observations in the same area had shifted substantially in later sediment cores within that region.
+Knowing the dredging history doesn't tell me anything about whether sediments or sand were put down to replace the removed material-- to look for areas of disturbance or modification, one strategy would be to choose a handful of important chemical analytes within the sediment samples that indicate sediment type, and then look to see whether observations in the same area had shifted substantially in later sediment cores within that region.
 
 As a first pass, however, I can still make a quick map of unique sampled locations, and when (if at all) these samples were dredged:
 
 ```{r, fig.width=10, fig.asp=1}
 chem_data[DredgeYear%in%c(NA,""," "),DredgeYear:=" Not Dredged"]
-dredge_table<-unique(chem_data[,list(LocationName,X,Y,RM,Dredged,DredgeYear,shipping_channel)])
+dredge_table<-unique(chem_data[,list(LocationName,X,Y,RM,Dredged,
+                                     DredgeYear,shipping_channel)])
 dredge_table[,point_index:=seq(1,nrow(dredge_table))]
-dredge_history<-MapSuite::PointMap(coords=dredge_table,id="point_index",xcol="X",ycol="Y",variable="DredgeYear",
+dredge_history<-MapSuite::PointMap(coords=dredge_table,
+                                   id="point_index",xcol="X",ycol="Y",
+                                   variable="DredgeYear",
                   map_title="Sample Sites with Historical Dredging",
                   map_subtitle="Lower Duwamish, Washington State",
                   map_colors = wpal("betafish"),
-                  legend_position = "bottom", legend_orientation = "horizontal", 
-                  return_objects = T, include_titles=T, map_NAcolor = "grey", font_size=20, map_transparency=.5)$map
+                  legend_position = "bottom", 
+                  legend_orientation = "horizontal", 
+                  return_objects = T, include_titles=T, 
+                  font_size=20, map_transparency=.5)$map
 print(dredge_history)
 ```
-
-
-<!-- Plotting the river, mile-by-mile: -->
-<!-- ```{r, fig.width=10, fig.asp=.3} -->
-<!-- chemical<-"Arsenic" -->
-<!-- chem_info<-chemlist[[chemical]] -->
-<!-- var<-"RM" -->
-
-<!-- # Let's see if we can find the dredged navigation channel/explore the dredging history -->
-<!-- lim<-c(min(chem_data[chem==chemical][[var]],na.rm=T),max(chem_data[chem==chemical][[var]],na.rm=T)) -->
-
-<!-- full_map<-MapSuite::PointMap(coords=chem_data[chem==chemical],id="sp_index",xcol="X",ycol="Y",variable=var, -->
-<!--                   map_title="River Miles",map_colors = wpal("betafish"), -->
-<!--                   legend_position = "bottom", return_objects = T, legend_orientation = "horizontal",  -->
-<!--                   include_titles=T, map_colors_limits = lim )$map -->
-
-<!-- maps<-list() -->
-<!-- for(river_mile in seq(0:3)){ -->
-<!-- maps[[paste0("RM_",river_mile)]]<-MapSuite::PointMap(coords=chem_data[chem==chemical &  -->
-<!--                                                      (RM>=river_mile) & (RM<river_mile+ifelse(river_mile==3,1,2))], -->
-<!--                                                      map_title=paste0("RM ",river_mile,ifelse(river_mile==3,"+","")), -->
-<!--                                                      id="sp_index",xcol="X",ycol="Y",variable=var, -->
-<!--                                                      map_colors = wpal("betafish"), -->
-<!--                                                      legend_position = "none", -->
-<!--                                                      return_objects=T, map_colors_limits = lim,  -->
-<!--                                                      include_titles = T)$map -->
-<!-- } -->
-
-<!-- plots_by_rivermile<-cowplot::plot_grid(maps[[1]],maps[[2]],maps[[3]],maps[[4]],align="h",nrow=1) -->
-<!-- ```     -->
-
-<!-- Plot the full length of the stream: -->
-<!-- ```{r, fig.width=10, fig.asp=1.4, echo=F} -->
-<!-- print(full_map) -->
-<!-- ``` -->
-
-<!-- Plot by river-mile: -->
-<!-- ```{r, fig.width=10, fig.asp=.3, echo=F} -->
-<!-- print(plots_by_rivermile) -->
-<!-- ``` -->
