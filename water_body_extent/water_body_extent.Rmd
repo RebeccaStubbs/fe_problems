@@ -44,7 +44,7 @@ Once a raster layer of binary 'water' and 'not-water' pixels for each time perio
 
 * Generating polygon or line vector information on the boundary between land and water- using each pixel centroid as a vertex, you could create the vector-version of the water body's boundaries for each time period.
 
-* Track, for each pixel, what times during the year each area was classified as "water" or "not water". This could get even more sophisticated if a classification process was run to recognize "damp soil", which is information that can potentially be gleaned from short-wave infared bands.
+* Track, for each pixel, what times during the year each area was classified as "water" or "not water". This could get even more sophisticated if a classification process was run to recognize "damp soil", which is information that can potentially be gleaned from short-wave infrared bands.
 
 In terms of platform, I could foresee myself using either R or ArcGIS for this task-- it depends on the extent of automation I am looking for. I would prefer to code in R if a high level of automation makes sense (for example, if many months worth of imagery data needed to be processed), but ArcGIS also has a wonderful suite of point-and-click tools that might get the job done quickly if I were only processing a handful of images. 
 
